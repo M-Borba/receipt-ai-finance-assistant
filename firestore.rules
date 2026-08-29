@@ -32,6 +32,19 @@ service cloud.firestore {
       return v is int && v >= 0 && v <= 10000000000;
     }
 
+    // ---- Grupos: autorizacion por PERTENENCIA, no por dueño ----
+    //
+    // Un gasto compartido no tiene un dueño, asi que el modelo
+    // `uid == resource.data.userId` del resto de la app no aplica.
+
+    function grupoDe(groupId) {
+      return get(/databases/$(database)/documents/groups/$(groupId)).data;
+    }
+
+    function esDelGrupo(groupId) {
+      return signedIn() && request.auth.uid in grupoDe(groupId).memberIds;
+    }
+
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
 
@@ -87,6 +100,63 @@ service cloud.firestore {
       allow create: if claimsOwnership();
       allow update: if owns() && claimsOwnership() && userIdIsImmutable();
       allow delete: if owns();
+    }
+
+    match /groups/{groupId} {
+      function esMiembro() {
+        return signedIn() && request.auth.uid in resource.data.memberIds;
+      }
+      function seraMiembro() {
+        return signedIn() && request.auth.uid in request.resource.data.memberIds;
+      }
+
+      allow get, list: if esMiembro();
+
+      // Al crear solo te podes poner a vos. Meter a otros sin que acepten es
+      // spam, y sumar gente es trabajo del link de invitacion.
+      allow create: if seraMiembro()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.memberIds.size() == 1
+        && request.resource.data.memberIds[0] == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80;
+
+      // Fase 1: renombrar y archivar, nada de tocar la membresia. Sumar gente
+      // llega con el link de invitacion, que necesita sus propias reglas Y los
+      // tests contra el emulador antes de que esto toque manos ajenas.
+      allow update: if esMiembro() && seraMiembro()
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.currency == resource.data.currency;
+
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.createdBy;
+
+      match /expenses/{expenseId} {
+        // Leer usa la copia desnormalizada de memberIds: es el camino
+        // caliente y un get() del grupo se factura en CADA evaluacion.
+        allow get, list: if signedIn()
+          && request.auth.uid in resource.data.memberIds;
+
+        // Escribir SI verifica contra el grupo de verdad. Sin esto cualquiera
+        // podria crear un gasto en un grupo ajeno declarandose miembro en la
+        // copia, y no habria forma de detectarlo. Escribir es raro comparado
+        // con leer, asi que la lectura extra por gasto es barata.
+        allow create: if esDelGrupo(groupId)
+          && request.resource.data.memberIds == grupoDe(groupId).memberIds
+          && request.resource.data.createdBy == request.auth.uid
+          && isMoneyCents(request.resource.data.amountCents)
+          && request.resource.data.amountCents > 0
+          && request.resource.data.date is timestamp;
+
+        allow update: if esDelGrupo(groupId)
+          && request.resource.data.memberIds == resource.data.memberIds
+          && isMoneyCents(request.resource.data.amountCents)
+          && request.resource.data.amountCents > 0;
+
+        allow delete: if esDelGrupo(groupId);
+      }
     }
 
     // Todo lo no declarado queda denegado explícitamente.

@@ -1,6 +1,7 @@
 # Grupos y división de gastos
 
-Documento de diseño. Nada de esto está implementado todavía.
+Documento de diseño. **La fase 1 está implementada y desplegada** (2026-08-29);
+las fases 2 y 3 siguen siendo diseño.
 
 ## Decisiones tomadas
 
@@ -184,8 +185,19 @@ El token del link **es** la credencial: quien lo tiene, entra. Por eso conviene 
 
 ## Fases
 
-**Fase 1.** Grupos, división en partes iguales y por partes, balances de a pares. Sin
-simplificación. Es el 80% del valor y no necesita nada de lo difícil.
+**Fase 1. HECHA** (2026-08-29). Grupos, división en partes iguales y por partes, balances
+de a pares, sin simplificación. Código en `lib/features/groups/`, 31 tests de la lógica de
+plata en `test/features/groups/`.
+
+Lo que salió distinto del diseño: **las escrituras de gastos sí hacen `get()` del grupo.**
+El diseño decía usar la copia desnormalizada de `memberIds` en todos lados para no pagar
+lecturas, pero con eso cualquiera podía crear un gasto en un grupo ajeno declarándose
+miembro en su propia copia, y no había forma de detectarlo. Leer sigue usando la copia
+(camino caliente, gratis); escribir verifica contra el grupo de verdad (raro, una lectura).
+
+Falta de la fase 1: **invitar gente**. El grupo se crea con una sola persona y las reglas
+prohíben cambiar `memberIds`. Es deliberado: el link de invitación es justo la parte que
+expone datos a terceros, y necesita los tests de reglas primero.
 
 **Fase 2.** Settle up con el greedy, switch de simplificación, registro de pagos.
 

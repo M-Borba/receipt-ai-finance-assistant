@@ -12,6 +12,8 @@ import '../../features/receipts/presentation/screens/receipt_list_screen.dart';
 import '../../features/receipts/presentation/screens/scan_receipt_screen.dart';
 import '../../features/insights/presentation/screens/insights_screen.dart';
 import '../../features/expenses/presentation/screens/expenses_screen.dart';
+import '../../features/groups/presentation/screens/group_detail_screen.dart';
+import '../../features/groups/presentation/screens/groups_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 
 part 'app_router.g.dart';
@@ -100,6 +102,20 @@ GoRouter appRouter(Ref ref) {
             builder: (context, state) => const ExpensesScreen(),
           ),
           GoRoute(
+            path: '/groups',
+            name: 'groups',
+            builder: (context, state) => const GroupsScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'groupDetail',
+                builder: (context, state) => GroupDetailScreen(
+                  groupId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
             path: '/insights',
             name: 'insights',
             builder: (context, state) => const InsightsScreen(),
@@ -135,7 +151,7 @@ class MainShell extends StatelessWidget {
     '/receipts',
     '/scan',
     '/expenses',
-    '/insights',
+    '/groups',
   ];
 
   /// El índice se deriva de la ruta actual. Guardarlo en un `State` lo dejaba
@@ -181,9 +197,9 @@ class MainShell extends StatelessWidget {
             label: 'Gastos',
           ),
           NavigationDestination(
-            icon: Icon(Icons.lightbulb_outlined),
-            selectedIcon: Icon(Icons.lightbulb),
-            label: 'Insights',
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
+            label: 'Grupos',
           ),
         ],
       ),

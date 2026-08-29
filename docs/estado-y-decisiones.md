@@ -68,7 +68,8 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - CI/CD en GitHub Actions, PWA instalable
 - **Tests contra tres tickets uruguayos reales** pasados por un OCR real, no
   texto inventado: ver `test/assets/ocr/README.md`
-- **175 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **Grupos fase 1**: crear grupo, cargar gasto, dividir en partes iguales o por partes, balances de a pares. Sin invitaciones todavía
+- **206 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 
@@ -84,8 +85,12 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 3. **Notificaciones.** Hoy cero. Las push necesitan un servidor que mire los
    datos: el mismo Worker del punto 2, con un cron. En iPhone solo funcionan si
    la persona instaló el PWA en la pantalla de inicio.
-4. **Grupos estilo Splitwise.** Todo el diseño está en
-   `docs/grupos-y-division.md`: algoritmos, modelo de datos, reglas, fases.
+4. **Invitar gente a un grupo.** La fase 1 está hecha pero un grupo tiene una
+   sola persona: las reglas prohíben cambiar `memberIds`. El link de invitación
+   es justo la parte que expone datos a terceros, así que va después de los
+   tests de reglas.
+5. **Grupos fase 2 y 3.** Settle up, y la que importa: asignación por ítem
+   ("la cerveza la tomamos Juan y yo"). Ver `docs/grupos-y-division.md`.
 
 ---
 
@@ -99,7 +104,9 @@ Importante para no confiar de más en el estado "todo verde":
 - **La UI renderizada.** Nadie cliqueó las pantallas desde el lado del
   desarrollo asistido. Desbordes, contraste y teclado tapando campos son
   invisibles ahí.
-- **Las reglas de Firestore.** Verificadas leyéndolas, no ejecutándolas.
+- **Las reglas de Firestore.** Verificadas leyéndolas, no ejecutándolas. Con
+  grupos esto pesa más que antes: son las primeras reglas de la app que
+  autorizan por pertenencia y no por dueño.
 - **El OCR con el motor que corre en producción.** Ya hay tres tickets
   uruguayos reales en `test/assets/ocr/`, pero el texto lo produjo Apple Vision,
   no ML Kit (móvil) ni Tesseract (web). Lo que se verificó es el **parser**
