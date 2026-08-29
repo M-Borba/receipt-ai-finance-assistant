@@ -1,0 +1,97 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Dueño del documento YA existente.
+    function owns() {
+      return signedIn() && request.auth.uid == resource.data.userId;
+    }
+
+    // Dueño del documento que se está escribiendo.
+    function claimsOwnership() {
+      return signedIn() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // El userId nunca puede cambiar: sin esto, un update podía reasignar
+    // un documento propio a otra cuenta (o robar uno ajeno vía create+update).
+    function userIdIsImmutable() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    // Montos en CENTAVOS enteros, no en pesos con decimales.
+    // El techo son 10.000 millones de centavos = 100 millones de pesos.
+    // Antes eran 100 millones de "algo": al pasar a centavos ese mismo numero
+    // habria significado un millon de pesos, un techo mucho mas bajo de lo
+    // que parecia. Es exactamente el tipo de regla que cambia de significado
+    // en silencio cuando cambia la unidad.
+    function isMoneyCents(v) {
+      return v is int && v >= 0 && v <= 10000000000;
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+
+      // Sin este wildcard, cualquier subcolección futura queda sin proteger.
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /receipts/{receiptId} {
+      allow get, list: if owns();
+      allow create: if claimsOwnership()
+        && isMoneyCents(request.resource.data.totalCents)
+        && request.resource.data.status in ['pending', 'processing', 'completed', 'failed'];
+      allow update: if owns() && claimsOwnership() && userIdIsImmutable()
+        && isMoneyCents(request.resource.data.totalCents);
+      allow delete: if owns();
+
+      // Miniatura del ticket en base64. Vive aparte para que la lista de
+      // tickets no la arrastre en cada snapshot: son decenas de KB por ticket.
+      // Lleva su propio userId, asi la regla no necesita leer el ticket padre
+      // (cada get() dentro de una regla es una lectura facturada).
+      match /media/{mediaId} {
+        allow get: if owns();
+        allow create: if claimsOwnership()
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 700000;
+        allow update: if owns() && claimsOwnership() && userIdIsImmutable();
+        allow delete: if owns();
+      }
+    }
+
+    match /expenses/{expenseId} {
+      allow get, list: if owns();
+      allow create: if claimsOwnership()
+        && isMoneyCents(request.resource.data.amountCents)
+        && request.resource.data.date is timestamp;
+      allow update: if owns() && claimsOwnership() && userIdIsImmutable()
+        && isMoneyCents(request.resource.data.amountCents);
+      allow delete: if owns();
+    }
+
+    match /budgets/{budgetId} {
+      allow get, list: if owns();
+      allow create: if claimsOwnership() && isMoneyCents(request.resource.data.limitCents);
+      allow update: if owns() && claimsOwnership() && userIdIsImmutable();
+      allow delete: if owns();
+    }
+
+    match /insights/{insightId} {
+      allow get, list: if owns();
+      // create faltaba por completo: escribir un insight fallaba siempre.
+      allow create: if claimsOwnership();
+      allow update: if owns() && claimsOwnership() && userIdIsImmutable();
+      allow delete: if owns();
+    }
+
+    // Todo lo no declarado queda denegado explícitamente.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

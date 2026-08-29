@@ -1,0 +1,31 @@
+name: Preview de PR
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  FLUTTER_VERSION: "3.44.0"
+
+jobs:
+  preview:
+    name: URL temporal por PR
+    runs-on: ubuntu-latest
+    # Los forks no tienen acceso a los secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter build web --release
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: mborba-proyect
+          expires: 7d

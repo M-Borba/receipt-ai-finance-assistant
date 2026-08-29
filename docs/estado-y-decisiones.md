@@ -1,0 +1,170 @@
+# Estado del proyecto y decisiones tomadas
+
+Documento de traspaso. Si estás retomando esto sin el contexto de la
+conversación donde se construyó, empezá acá.
+
+Última actualización: 2026-08-29
+
+---
+
+## Qué es
+
+Asistente financiero personal. El escaneo de tickets es la puerta de entrada,
+no el producto. El objetivo es que responda preguntas sobre la plata de quien
+la usa.
+
+**En vivo:** https://mborba-proyect.web.app (Firebase Hosting, proyecto
+`mborba-proyect`)
+
+**Target:** Uruguay. `APP_LOCALE=es_UY`, `CURRENCY_CODE=UYU`, tickets DD/MM.
+
+---
+
+## Decisiones y por qué
+
+Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
+
+| Decisión | Motivo |
+|---|---|
+| **Plan Spark, no Blaze** | Todo lo necesario se resuelve con reglas. Blaze solo hacía falta para Storage y Cloud Functions, y ninguno es imprescindible. No se quiere tarjeta cargada. |
+| **Solo web, sin tiendas** | Play cobra USD 25 una vez, Apple USD 99 por año. Se descartó pagar. La web es PWA instalable; el APK se distribuye como artifact del CI para instalación directa. |
+| **Plata en centavos enteros (`int`)** | `0.1 + 0.2 != 0.3`. En un gasto suelto es invisible; en deudas compartidas se acumula. El reparto sin perder centavos usa división entera y módulo: no se puede escribir bien con `double`. Prerrequisito de grupos. |
+| **Firestore ES el storage de fotos** | Firebase Storage exige Blaze en proyectos nuevos. La foto se guarda a **1000px, calidad 70, en base64** en `receipts/{id}/media/thumb`. Medido sobre tickets reales: 84-160 KB. El plan gratuito da 1 GiB, o sea ~8.000 tickets; a tres por día son siete años. No es un parche por falta de plata: **para grupos es mejor que un blob store aparte**, porque que un amigo vea la foto del ticket compartido es la misma regla de membresía que el ticket ya necesita. Con Supabase o R2 habría que duplicar el modelo de permisos en un segundo sistema, y para hacerlo seguro hace falta el Worker (Supabase valida sus propios JWT, no los de Firebase). |
+| **La miniatura va en subcolección** | En el documento del ticket, `watchReceipts` se traería 20 miniaturas por snapshot: megabytes de datos móviles por cada apertura de la lista. |
+| **La miniatura lleva su propio `userId`** | Alternativa era `get()` del ticket padre dentro de la regla, y cada `get()` en una regla es una lectura facturada, en cada evaluación. |
+| **`rawOcrText` NO se persiste** | Era el texto completo de cada compra guardado para siempre, y no lo leía nadie. Exposición sin beneficio. Se usa durante el escaneo (vive en el `ReceiptDraft`) y se descarta. Los documentos viejos se siguen leyendo. |
+| **Clasificación local primero, IA después** | El clasificador de comercios corre en el dispositivo: gratis, instantáneo, offline. La IA quedó como plan B. Antes era al revés, y como la IA apunta a `localhost` no funcionaba nunca en producción. |
+| **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
+| **Sin tests de reglas de Firestore** | Requieren el emulador (JAR, Java 11+) y `@firebase/rules-unit-testing` (solo JS), o sea Node en un repo Dart puro. Se pospuso a conciencia. **Ver el gatillo más abajo.** |
+| **Config en `assets/config/app.env`, versionada** | Va dentro del binario igual, así que no puede tener secretos. `.env` quedó gitignoreado y sin uso. Antes `.env` era asset obligatorio Y estaba gitignoreado: ningún clone limpio compilaba. |
+| **Los items se acotan al bloque del detalle** | Un e-Ticket de DGI tiene encabezado, detalle y pie. Sin acotar, el número de RUT entraba como un producto de $219.640.160,11 y las filas de la tabla de IVA entraban con el monto del total. Además: **ningún ítem puede costar más que el ticket entero**, que es la regla que limpia la basura sin depender de cómo el OCR cortó las columnas. |
+| **Google Sign-In por `signInWithPopup` en web** | `GoogleSignIn().signIn()` está deprecado en web justamente porque no devuelve un `idToken` confiable. Además había un meta tag `google-signin-client_id` en `index.html` con un client ID sin origen autorizado, que producía `origin_mismatch`. Se removió. |
+
+### Gatillo bloqueante
+
+**Antes de que grupos llegue a manos de otra persona, hay que tener tests de las
+reglas de Firestore contra el emulador.** Hoy no existen. Mientras la app tiene
+un solo usuario, equivocarse solo expone tus propios datos. Con grupos hay gente
+ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
+
+---
+
+## Qué está construido
+
+- Auth con email y Google (web usa el popup de Firebase)
+- Escaneo con **revisión editable antes de guardar**: nada se escribe en
+  Firestore hasta que la persona confirma
+- Entrada manual de gasto
+- Borrado de tickets, que borra el gasto asociado en el mismo batch
+- Presupuesto por categoría con alertas in-app (verde / 80% / excedido)
+- Dashboard, gastos por categoría, detalle de ticket
+- Ajustes: exportar a CSV, borrar cuenta con todos sus datos
+- Parser de tickets LatAm: DD/MM, vocabulario español, tildes y ñ, y **las dos
+  convenciones de separador** (`1.234,56` y `1,056.00`: los e-Ticket de DGI usan
+  la segunda, al revés de lo que se asumía)
+- Clasificador de comercios uruguayos on-device
+- Moneda y fechas por locale
+- Foto del ticket legible en Firestore, ampliable con zoom desde el detalle
+- CI/CD en GitHub Actions, PWA instalable
+- **Tests contra tres tickets uruguayos reales** pasados por un OCR real, no
+  texto inventado: ver `test/assets/ocr/README.md`
+- **175 tests**, `flutter analyze` en 0 errores y 0 warnings
+
+## Qué falta
+
+1. ~~**Foto en alta en el dispositivo**~~ **Descartado.** Existía porque la
+   miniatura de 480px era ilegible. A 1000px se leen los ítems y los importes,
+   sincroniza a todos lados y se comparte con un grupo sin trabajo extra. Una
+   copia local solo en el celular era peor en todo salvo en resolución.
+2. **Proxy de IA** en Cloudflare Workers. Sin esto la clasificación por IA y los
+   insights solo funcionan en la máquina de desarrollo, porque `AIProvider`
+   apunta a Ollama en `localhost`. Sirve para: insights, estructurar el texto
+   cuando el regex falla, y el chat futuro. Para clasificar ya casi no hace
+   falta.
+3. **Notificaciones.** Hoy cero. Las push necesitan un servidor que mire los
+   datos: el mismo Worker del punto 2, con un cron. En iPhone solo funcionan si
+   la persona instaló el PWA en la pantalla de inicio.
+4. **Grupos estilo Splitwise.** Todo el diseño está en
+   `docs/grupos-y-division.md`: algoritmos, modelo de datos, reglas, fases.
+
+---
+
+## Lo que NO está verificado
+
+Importante para no confiar de más en el estado "todo verde":
+
+- **El camino completo contra Firestore.** No hay sesión de usuario en el
+  entorno de desarrollo de la IA. Guardar, borrar y presupuestos están
+  verificados por compilación y tests de lógica pura, no de punta a punta.
+- **La UI renderizada.** Nadie cliqueó las pantallas desde el lado del
+  desarrollo asistido. Desbordes, contraste y teclado tapando campos son
+  invisibles ahí.
+- **Las reglas de Firestore.** Verificadas leyéndolas, no ejecutándolas.
+- **El OCR con el motor que corre en producción.** Ya hay tres tickets
+  uruguayos reales en `test/assets/ocr/`, pero el texto lo produjo Apple Vision,
+  no ML Kit (móvil) ni Tesseract (web). Lo que se verificó es el **parser**
+  contra salida real de un OCR; lo que falta es confirmar que ML Kit corta las
+  líneas parecido. Donde más puede diferir es en el detalle, porque el nombre y
+  los números vienen en líneas separadas y cada motor arma las columnas a su
+  manera. El total, la fecha y el comercio no dependen del corte de líneas.
+- **El precio de cada ítem es aproximado; el total es exacto.** Según el
+  comercio, la columna que queda pegada al nombre es el importe o el precio
+  unitario, y no hay forma de distinguirlas sin conocer el layout. En 8 de los 9
+  ítems de los tickets reales queda el importe correcto. El total, que es lo que
+  alimenta el gasto y el presupuesto, sale bien en los tres. La pantalla de
+  revisión permite corregir antes de guardar.
+
+Confirmado funcionando en un celular real por el usuario.
+
+---
+
+## Trampas conocidas
+
+**El service worker de Flutter cachea la app entera.** Después de un deploy, la
+pestaña vieja sigue sirviendo la versión anterior. Para probar: ventana de
+incógnito, o DevTools → Application → Service Workers → Unregister.
+
+**Los `*.g.dart` están gitignoreados.** Cualquier clone o CI necesita correr
+`dart run build_runner build --delete-conflicting-outputs` antes de analizar o
+testear.
+
+**Riverpod le saca el sufijo `Notifier` al provider generado.** `ScanNotifier`
+genera `scanProvider`, no `scanNotifierProvider`.
+
+**Cuidado con `\$` al editar con heredocs.** En Dart `'\$'` es un escape válido,
+así que `'\${variable}'` compila perfecto y muestra el texto literal en
+pantalla. El analyzer no lo detecta. Ya pasó dos veces: en el prompt de la IA y
+en los avisos del dashboard. Verificar con:
+`grep -rn '\\\${' lib --include="*.dart" | grep -v "g.dart"`
+
+**`flutter analyze` sin excluir `build/`** devuelve miles de errores ajenos.
+Ya está excluido en `analysis_options.yaml`.
+
+---
+
+## Comandos
+
+```bash
+# desarrollo
+dart run build_runner build --delete-conflicting-outputs
+flutter analyze lib test --no-fatal-infos
+flutter test
+flutter run -d chrome --web-port=5000
+
+# deploy (el CI lo hace solo en push a main, si está el secret)
+flutter build web --release
+firebase deploy --only hosting --project mborba-proyect
+firebase deploy --only firestore:rules,firestore:indexes --project mborba-proyect
+```
+
+## Pendientes de infraestructura
+
+- **El repo no tiene ni un commit.** ~200 archivos sin versionar. El CI y el
+  deploy automático no arrancan hasta el primer push.
+- **Falta el secret `FIREBASE_SERVICE_ACCOUNT`** en GitHub Actions para que el
+  deploy corra solo. Se genera en Firebase Console → Configuración → Cuentas de
+  servicio.
+- **Rotar el client secret de OAuth** que estuvo suelto en el directorio del
+  repo (`client_secret_*.json`, ya gitignoreado).
+- **Firebase Storage está sin activar.** No hace falta mientras se use la
+  miniatura.

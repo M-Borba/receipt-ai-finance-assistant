@@ -1,0 +1,33 @@
+RUT: 210000000010
+GUILLERNO PUJADAS SAS
+ING. EDUARDO GARCIA DE ZUNIGA 2249, MONTEVIDEO,
+MONTEVIDEO
+24/07/2026  CONTADO
+e-Ticket  A00000
+CONSUMIDOR FINAL
+Consumidor Final
+MONTEVIDEO, MONTEVIDEO
+MONEDA: UYU
+1. CARNE VACUNA
+1.59  419.00  666.21
+Aves
+0.5  349.00  174.50
+Chacinado
+0.49  360.66  176.72
+Ajuste por Redondeo
+1  -0.31  -0.31
+IMPUESTOS
+TIPO  NETO  IVA  Sub TOTAL
+22%  176.72  38.88  215.60
+10%  0.00  0.00  0.00
+0%  840.40  0.00  840.40
+TOTAL UYU  1,056.00
+ADENDA
+Cod. de Seguridad: XXXXXX
+Resolucion: 2024-06-23
+Puede verificar CFE:
+https://www.gns-mas.com/cfe/index.php?e=gpujadas
+Constancia de IVA al dia
+Numero de CAE: 90200000000
+RANGO: 86301 - 91300
+Vencimiento CAE: 04/06/2028

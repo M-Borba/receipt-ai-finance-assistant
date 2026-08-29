@@ -1,0 +1,77 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+*.iml
+.packages
+secret
+# Generated code (regenerar con: dart run build_runner build --delete-conflicting-outputs)
+*.g.dart
+*.freezed.dart
+
+# Herramientas descargadas: NUNCA deben entrar al repo
+google-cloud-sdk/
+*.tar.gz
+*.tgz
+*.zip
+
+# Environment
+# .env se empaqueta como asset del binario (pubspec.yaml), asi que NO puede contener
+# secretos: cualquiera los extrae del APK/IPA. Solo config no sensible, y por eso se
+# versiona. Los secretos reales viven server-side (Cloud Functions / Secret Manager).
+.env.local
+.env.*.local
+
+# Credenciales OAuth y service accounts: NUNCA al repo
+client_secret*.json
+*firebase-adminsdk*.json
+*-adminsdk-*.json
+*credentials*.json
+service-account*.json
+*-serviceaccount*.json
+
+# Firebase
+# firebase.json, .firebaserc y firestore.indexes.json SI se versionan:
+# son configuracion de deploy, no secretos.
+google-services.json
+GoogleService-Info.plist
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# Android
+android/key.properties
+android/.gradle/
+android/local.properties
+*.jks
+*.keystore
+
+# iOS
+ios/Flutter/flutter_export_environment.sh
+ios/Pods/
+ios/.symlinks/
+
+# Coverage
+coverage/
+.env
+
+# Fotos de tickets reales usadas para generar los fixtures de OCR.
+# No se versionan: el repo es publico y son compras propias, con el numero de
+# CAE y el codigo de seguridad que permiten levantar el comprobante en DGI.
+# Lo que si se versiona es el texto ya redactado en test/assets/ocr/.
+test/assets/*.jpg
+test/assets/*.jpeg
+test/assets/*.png

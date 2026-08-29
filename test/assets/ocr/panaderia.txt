@@ -1,0 +1,42 @@
+2020-00 17
+MEDIALUNAS GUICHON S.R.L.  R.U.T.
+Dr. Emilio Frugoni 1284
+Tels : 2408 5892- 2409 7941- 2401 8666
+Cel: 095 018 056
+MONTEVIDEO - URUGUAY  e-Ticket AZ00000
+CONTADO
+Fecha : 28/08/2026 16:47  Fecha Vto.:
+Moneda: UYU  Cotizacion:  0.00
+Razon Social: BUEN PROVECHO
+Direcoion:  0/n
+R.U.T. COMPRADOR
+Cant.  Codigo  Descripcion
+Precio  Importe
+10 101  CATALANES REDONDOS  14.77
+193.51
+10.5 21  MEDIALUNAS MEDIANAS
+11.81  162.52
+T  SUBTOTAL  DTO.  REC.
+I.V.A.  TOTAL
+E  0.00  0.00  0.00
+0.00  0.00
+147.72  0.00  0.00  19.35  212.86
+124.06  0.00  0.00  35.75  198.27
+TOTAL UYU  411.14
+ADENDA
+Codigo cliente: 000  Doc. Interno: FCD B  000000
+Observaciones:
+Cuenta Tranf:CUENTA CORRIENTE BROU 000000000-00000 MEDIALUNAS
+GUICHON
+FIN ADENDA
+DGI
+Resolucion DGI: 270 / 2018
+Nro. CAE: 90200000002
+Serie CAE: A
+Desde CAE:  222001
+Hasta CAE: 262000
+Puede verificar este comprobante en:
+Cod. Seguridad: XXXXXX  https://efactura-cp2.pwstasp.com.uy/
+https://www.efactura.dgi.gub.uy/
+Fecha Vencimiento
+2028-06-11

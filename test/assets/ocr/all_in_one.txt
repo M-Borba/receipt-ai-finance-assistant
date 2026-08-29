@@ -1,0 +1,33 @@
+ALLIN ONE
+RUT: 210000000020
+VALLS SPOSITO GABRIEL
+JOSE M. MONTERO, MONTEVIDEO
+e-Ticket  15/08/2026
+A000000
+CONTADO
+CONSUMIDOR FINAL
+Consumidor Final
+MONTEVIDEO
+Pesos Uruguayos
+Canciller Malbec 750 ml  146.72
+146.72
+Jugo Grow Naranja/Zanahoria  72.95
+1  72.95
+Zillertal 1 It Retornable  262.30
+131.15
+Zilertal IPA 1 ll Retornabl  147.54
+147.54
+IMPUESTOS
+TIPO  NETO  IVA  Sub. TOTA
+22%  629.51  138.49  768.00
+10%  0.00  0.00  0.0C
+0%  0.00  0.00  0.0C
+TOTAL $  768.00
+ADENDA
+Cod. de Seguridad: XXXXXX
+Fecha amisor: 2020-08-01
+Puede verificar el comprobante en:
+https://www.gns-mas.com/cte/index.php?e=gvalls
+Constancia de IVA al dia
+Numero de CAE: 90200000001 RANGO: 800001 - 900
+Fecha de Vencimiento CAE: 29/12/2027

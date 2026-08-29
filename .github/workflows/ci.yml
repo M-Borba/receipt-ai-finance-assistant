@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.44.0"
+
+jobs:
+  verify:
+    name: Analizar, testear y compilar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Los *.g.dart estan gitignoreados a proposito, asi que hay que
+      # generarlos antes de analizar o testear.
+      - name: Generar codigo
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analizar
+        run: flutter analyze lib test --no-fatal-infos
+
+      - name: Tests
+        run: flutter test --coverage --reporter expanded
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          if-no-files-found: ignore
+
+      # Compilar es el unico chequeo que atrapa errores que el analyzer no ve.
+      - name: Compilar web
+        run: flutter build web --release

@@ -1,0 +1,91 @@
+name: receipt_ai_finance_assistant
+description: AI-powered personal finance assistant with receipt scanning
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.3
+  google_sign_in: ^6.2.1
+
+  # State management
+  flutter_riverpod: ^3.0.0
+  riverpod_annotation: ^3.0.0
+
+  # Navigation
+  go_router: ^14.3.0
+
+  # Network
+  dio: ^5.7.0
+  http: ^1.2.2
+
+  # Image handling
+  cross_file: ^0.3.4
+  image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0
+  cached_network_image: ^3.4.1
+  image: ^4.2.0
+
+  # OCR
+  google_mlkit_text_recognition: ^0.13.1
+
+  # Charts
+  fl_chart: ^0.69.0
+  graphify: ^1.2.1
+
+  # Storage / Cache
+  shared_preferences: ^2.3.2
+  hive_flutter: ^1.1.0
+
+  # Code gen support
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
+
+  # Env config
+  flutter_dotenv: ^5.2.1
+
+  # Web interop (descarga de archivos en el navegador)
+  web: ^1.1.0
+
+  # Utilities
+  intl: ^0.20.2
+  uuid: ^4.5.1
+  path: ^1.9.0
+  path_provider: ^2.1.4
+  dartz: ^0.10.1
+  equatable: ^2.0.5
+  logger: ^2.4.0
+
+  # UI
+  lottie: ^3.1.2
+  shimmer: ^3.0.0
+  percent_indicator: ^4.2.4
+  flutter_svg: ^2.0.10+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.12
+  freezed: ^3.0.0
+  json_serializable: ^6.8.0
+  riverpod_generator: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
+    - assets/config/app.env
