@@ -51,5 +51,110 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script src="flutter_bootstrap.js" async></script>
+
+  <!--
+    Aviso de version nueva.
+
+    Por que hace falta: instalada en la pantalla de inicio, la app no tiene
+    barra de direcciones ni gesto de recarga forzada. Si queda abierta varios
+    dias nunca se entera de que hubo un deploy, y no hay forma de forzarla
+    desde adentro. Esto le avisa y le da el boton.
+
+    El service worker que genera Flutter hoy solo se auto-desregistra y no
+    cachea nada, asi que una recarga alcanza para traer lo nuevo. Lo que falta
+    es enterarse de cuando conviene recargar.
+
+    Va en JS suelto y no en Dart a proposito: si la version cargada tiene un
+    bug que rompe el arranque, este aviso sigue funcionando y permite salir de
+    esa version. Un aviso escrito en Dart se caeria junto con la app.
+  -->
+  <script>
+  (function () {
+    var CADA_MS = 5 * 60 * 1000;
+    var referencia = null;
+    var avisando = false;
+
+    function huella(res) {
+      return res.headers.get('etag') || res.headers.get('last-modified');
+    }
+
+    function chequear() {
+      if (avisando || document.visibilityState !== 'visible') return;
+      // HEAD con no-store: unos cientos de bytes, no baja el bundle.
+      fetch('main.dart.js', { method: 'HEAD', cache: 'no-store' })
+        .then(function (res) {
+          if (!res.ok) return;
+          var h = huella(res);
+          if (!h) return;
+          if (referencia === null) { referencia = h; return; }
+          if (h !== referencia) mostrar();
+        })
+        .catch(function () { /* sin conexion: se reintenta en el proximo ciclo */ });
+    }
+
+    function mostrar() {
+      if (avisando) return;
+      avisando = true;
+
+      var barra = document.createElement('div');
+      barra.setAttribute('role', 'status');
+      barra.style.cssText = [
+        'position:fixed', 'left:16px', 'right:16px', 'bottom:16px',
+        'z-index:2147483647', 'display:flex', 'align-items:center', 'gap:12px',
+        'padding:14px 16px', 'border-radius:14px',
+        'background:#252540', 'color:#F0F0FF',
+        'font:500 14px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif',
+        'box-shadow:0 8px 28px rgba(0,0,0,.45)',
+        // Respeta el area segura del iPhone: sin esto queda debajo de la barra
+        // de gestos y el boton no se puede tocar.
+        'margin-bottom:env(safe-area-inset-bottom,0px)'
+      ].join(';');
+
+      var texto = document.createElement('span');
+      texto.textContent = 'Hay una version nueva de la app.';
+      texto.style.flex = '1';
+
+      var boton = document.createElement('button');
+      boton.textContent = 'Actualizar';
+      boton.style.cssText = [
+        'flex:none', 'border:0', 'cursor:pointer',
+        'padding:9px 16px', 'border-radius:10px',
+        'background:#6C63FF', 'color:#fff',
+        'font:600 14px/1 inherit'
+      ].join(';');
+      boton.addEventListener('click', function () {
+        boton.disabled = true;
+        boton.textContent = 'Actualizando...';
+        location.reload();
+      });
+
+      var cerrar = document.createElement('button');
+      cerrar.setAttribute('aria-label', 'Ahora no');
+      cerrar.textContent = '\u00d7';
+      cerrar.style.cssText = [
+        'flex:none', 'border:0', 'cursor:pointer', 'background:transparent',
+        'color:#8E8EA8', 'font:400 22px/1 inherit', 'padding:0 4px'
+      ].join(';');
+      cerrar.addEventListener('click', function () {
+        barra.remove();
+        avisando = false;
+        // Se vuelve a preguntar recien en el proximo ciclo, no al instante:
+        // si no, el aviso reaparece de inmediato y es peor que no tenerlo.
+        referencia = null;
+      });
+
+      barra.appendChild(texto);
+      barra.appendChild(boton);
+      barra.appendChild(cerrar);
+      document.body.appendChild(barra);
+    }
+
+    chequear();
+    setInterval(chequear, CADA_MS);
+    // Volver a la app despues de tenerla en segundo plano es el momento mas
+    // probable de que haya algo nuevo.
+    document.addEventListener('visibilitychange', chequear);
+  })();
+  </script>
 </body>
 </html>
