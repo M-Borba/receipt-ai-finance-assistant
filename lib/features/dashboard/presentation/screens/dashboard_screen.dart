@@ -11,6 +11,7 @@ import '../../../../features/expenses/presentation/providers/expense_provider.da
 import '../../../../features/expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../../../features/budgets/domain/entities/budget_status.dart';
 import '../../../../features/budgets/presentation/providers/budget_provider.dart';
+import '../../../../features/groups/presentation/providers/group_provider.dart';
 import '../../../../features/insights/domain/entities/insight_entity.dart';
 import '../../../../features/insights/presentation/providers/insights_provider.dart';
 import '../../../../features/receipts/domain/entities/receipt_entity.dart';
@@ -37,7 +38,7 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: CustomScrollView(
         slivers: [
-          _buildAppBar(context, user?.displayNameOrEmail ?? 'there'),
+          _buildAppBar(context, user?.displayNameOrEmail ?? 'Hola'),
           SliverPadding(
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
@@ -50,14 +51,21 @@ class DashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                 ],
                 _SectionHeader(
-                  title: 'AI Insights',
+                  title: 'Insights',
                   onTap: () => context.go('/insights'),
                 ),
                 const SizedBox(height: 12),
                 _InsightsSummary(insightsAsync: insightsAsync),
                 const SizedBox(height: 16),
                 _SectionHeader(
-                  title: 'Recent Receipts',
+                  title: 'Grupos',
+                  onTap: () => context.go('/groups'),
+                ),
+                const SizedBox(height: 12),
+                const _ResumenGrupos(),
+                const SizedBox(height: 16),
+                _SectionHeader(
+                  title: 'Tickets recientes',
                   onTap: () => context.go('/receipts'),
                 ),
                 const SizedBox(height: 12),
@@ -354,7 +362,7 @@ class _SectionHeader extends StatelessWidget {
         Text(title, style: Theme.of(context).textTheme.titleMedium),
         TextButton(
           onPressed: onTap,
-          child: const Text('See all', style: TextStyle(color: AppColors.primary)),
+          child: const Text('Ver todo', style: TextStyle(color: AppColors.primary)),
         ),
       ],
     );
@@ -494,6 +502,88 @@ class _DashboardReceiptTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Los grupos con el saldo propio, en el inicio.
+///
+/// Antes grupos solo existia en la barra de abajo. Quien entra al inicio a ver
+/// como viene el mes tambien quiere saber si le deben algo, y no habia ninguna
+/// señal de que la seccion existiera.
+class _ResumenGrupos extends ConsumerWidget {
+  const _ResumenGrupos();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final grupos = ref.watch(groupsProvider);
+
+    return grupos.when(
+      loading: () => const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(child: LoadingIndicator()),
+        ),
+      ),
+      // Un error acá no puede romper el inicio entero: se calla y sigue.
+      error: (_, __) => const SizedBox.shrink(),
+      data: (lista) {
+        if (lista.isEmpty) {
+          return Card(
+            child: ListTile(
+              onTap: () => context.go('/groups'),
+              leading: const CircleAvatar(
+                backgroundColor: AppColors.cardDark,
+                child: Icon(Icons.group_add, color: AppColors.primary),
+              ),
+              title: const Text('Dividir gastos con alguien'),
+              subtitle: const Text(
+                'El asado, el alquiler, un viaje',
+                style: TextStyle(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            for (final g in lista.take(3))
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  onTap: () => context.go('/groups/${g.id}'),
+                  leading: const CircleAvatar(
+                    backgroundColor: AppColors.cardDark,
+                    child: Icon(Icons.groups, color: AppColors.primary),
+                  ),
+                  title: Text(g.name),
+                  trailing: Consumer(
+                    builder: (context, ref, _) {
+                      final saldo = ref.watch(myBalanceProvider(g.id));
+                      if (saldo == 0) {
+                        return const Text(
+                          'Al día',
+                          style: TextStyle(
+                              color: AppColors.textMuted, fontSize: 13),
+                        );
+                      }
+                      final debo = saldo < 0;
+                      return Text(
+                        '${debo ? '-' : '+'}'
+                        '${Money.format(saldo.abs(), code: g.currency)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: debo ? AppColors.error : AppColors.success,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
