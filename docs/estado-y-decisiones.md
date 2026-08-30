@@ -128,8 +128,18 @@ Confirmado funcionando en un celular real por el usuario.
 ## Trampas conocidas
 
 **El service worker de Flutter cachea la app entera.** Después de un deploy, la
-pestaña vieja sigue sirviendo la versión anterior. Para probar: ventana de
-incógnito, o DevTools → Application → Service Workers → Unregister.
+pestaña vieja puede seguir sirviendo la versión anterior hasta que se recargue.
+Para probar en el momento: ventana de incógnito, o DevTools → Application →
+Service Workers → Unregister.
+
+**Los headers de cache de Hosting estaban mal y ya se arreglaron** (2026-08-30).
+`main.dart.js` salía con `immutable, max-age=31536000`, o sea un año, y `/` no
+tomaba la regla de `no-cache` porque estaba escrita como `/index.html` literal.
+En Flutter web **ningún** archivo del build lleva hash en el nombre: el
+versionado lo hace el service worker, no la URL, así que marcar algo como
+`immutable` es mentirle al navegador. Ahora todo va con `no-cache`, que no
+significa "no cachear" sino "revalidar antes de usar": se siguen recibiendo 304
+y el service worker sirve igual desde Cache Storage.
 
 **Los `*.g.dart` están gitignoreados.** Cualquier clone o CI necesita correr
 `dart run build_runner build --delete-conflicting-outputs` antes de analizar o
