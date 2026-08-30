@@ -185,7 +185,27 @@ class _FilaGasto extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        title: Text(gasto.description.isEmpty ? 'Gasto' : gasto.description),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                gasto.description.isEmpty ? 'Gasto' : gasto.description,
+              ),
+            ),
+            // Las reglas de Firestore no pueden sumar los valores de un mapa,
+            // asi que no hay forma de garantizar del lado del servidor que el
+            // reparto cierre. Si no cierra, se dice: sumarlo en silencio
+            // torceria los saldos de todo el grupo sin dejar rastro.
+            if (!gasto.isBalanced) ...[
+              const SizedBox(width: 6),
+              const Tooltip(
+                message: 'El reparto de este gasto no suma el total',
+                child: Icon(Icons.warning_amber_rounded,
+                    size: 16, color: AppColors.warning),
+              ),
+            ],
+          ],
+        ),
         subtitle: Text(
           '$pagadores pagó ${Money.format(gasto.amountCents, code: grupo.currency)}'
           ' · ${AppDate.shortDate(gasto.date)}',
@@ -235,9 +255,20 @@ class _FilaGasto extends ConsumerWidget {
       ),
     );
     if (ok != true || !context.mounted) return;
-    await ref
+
+    final res = await ref
         .read(groupRepositoryProvider)
         .deleteExpense(gasto.groupId, gasto.id);
+    if (!context.mounted) return;
+
+    // Tirar el Either dejaba el borrado fallido en silencio: el gasto seguia
+    // ahi y los saldos seguian contandolo, sin que nada lo dijera.
+    res.fold(
+      (f) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo borrar el gasto. ${f.message}')),
+      ),
+      (_) {},
+    );
   }
 }
 

@@ -51,6 +51,18 @@ class Environment {
 
   static bool get enableAiInsights => _get('ENABLE_AI_INSIGHTS') == 'true';
 
+  /// Si se intenta subir la foto a Firebase Storage.
+  ///
+  /// Apagado por defecto **a proposito**: Storage exige plan Blaze en proyectos
+  /// nuevos y este proyecto esta en Spark. Con esto prendido, cada guardado
+  /// hacia una subida condenada a fallar, con hasta 45 segundos de timeout, en
+  /// el camino critico de guardar un ticket. La foto vive en Firestore.
+  ///
+  /// Se enciende poniendo ENABLE_CLOUD_STORAGE=true, para el dia que el
+  /// proyecto pase a Blaze.
+  static bool get enableCloudStorage =>
+      _get('ENABLE_CLOUD_STORAGE') == 'true';
+
   static double get ocrConfidenceThreshold =>
       double.tryParse(_get('OCR_CONFIDENCE_THRESHOLD') ?? '0.7') ?? 0.7;
 

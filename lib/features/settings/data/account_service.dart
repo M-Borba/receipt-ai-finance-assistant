@@ -40,6 +40,17 @@ class AccountService {
     'budgets',
   ];
 
+  /// Subcolecciones que cuelgan de un documento de [_colecciones].
+  ///
+  /// Firestore **no borra las subcolecciones al borrar el documento padre**.
+  /// Sin esto, la foto de cada ticket quedaba en `receipts/{id}/media/thumb`
+  /// para siempre: al borrarse la cuenta se pierde el uid, y las reglas piden
+  /// `userId == request.auth.uid`, asi que nadie podia volver a leerlas ni
+  /// borrarlas. Ademas de ocupar la cuota, incumple el derecho de supresion.
+  static const _subcolecciones = <String, List<String>>{
+    AppConstants.receiptsCollection: ['media'],
+  };
+
   /// Firestore limita cada batch a 500 escrituras.
   static const _batchSize = 400;
 
@@ -56,6 +67,7 @@ class AccountService {
       for (final coleccion in _colecciones) {
         await _borrarColeccion(coleccion, user.uid);
       }
+      await _borrarGrupos(user.uid);
       await _firestore
           .collection(AppConstants.usersCollection)
           .doc(user.uid)
@@ -85,6 +97,8 @@ class AccountService {
   }
 
   Future<void> _borrarColeccion(String coleccion, String userId) async {
+    final subs = _subcolecciones[coleccion] ?? const <String>[];
+
     while (true) {
       final snap = await _firestore
           .collection(coleccion)
@@ -94,14 +108,69 @@ class AccountService {
 
       if (snap.docs.isEmpty) return;
 
-      final batch = _firestore.batch();
-      for (final doc in snap.docs) {
-        batch.delete(doc.reference);
+      // Se cuentan las escrituras en vez de contar documentos: cada ticket
+      // borra ademas su subcoleccion, asi que 400 tickets podian ser 800
+      // escrituras y el limite de Firestore son 500 por batch.
+      var batch = _firestore.batch();
+      var escrituras = 0;
+
+      Future<void> anotar(DocumentReference ref) async {
+        if (escrituras >= _batchSize) {
+          await batch.commit();
+          batch = _firestore.batch();
+          escrituras = 0;
+        }
+        batch.delete(ref);
+        escrituras++;
       }
-      await batch.commit();
+
+      for (final doc in snap.docs) {
+        // Las subcolecciones primero: despues de borrar el padre siguen
+        // existiendo igual, pero ya no hay forma de llegar a ellas.
+        for (final sub in subs) {
+          final hijos = await doc.reference.collection(sub).get();
+          for (final hijo in hijos.docs) {
+            await anotar(hijo.reference);
+          }
+        }
+        await anotar(doc.reference);
+      }
+      if (escrituras > 0) await batch.commit();
 
       // Si vino menos que el maximo, no queda nada mas.
       if (snap.docs.length < _batchSize) return;
+    }
+  }
+
+  /// Borra los grupos donde la persona es la unica integrante, con sus gastos.
+  ///
+  /// Los grupos compartidos NO se borran: son datos de otras personas tambien,
+  /// y borrarlos destruiria el historial de gente que no pidio nada. Ahi solo
+  /// corresponde sacar a quien se va de `memberIds`, y eso llega junto con las
+  /// invitaciones, que es cuando un grupo puede tener a alguien mas.
+  Future<void> _borrarGrupos(String userId) async {
+    final snap = await _firestore
+        .collection('groups')
+        .where('memberIds', arrayContains: userId)
+        .get();
+
+    for (final grupo in snap.docs) {
+      final data = grupo.data();
+      final miembros = (data['memberIds'] as List?)?.cast<String>() ?? const [];
+      if (miembros.length > 1) continue;
+
+      final gastos = await grupo.reference.collection('expenses').get();
+      // Un grupo puede tener muchos gastos: se corta en tandas para no pasar
+      // el limite de 500 escrituras por batch.
+      for (var i = 0; i < gastos.docs.length; i += _batchSize) {
+        final tanda = gastos.docs.skip(i).take(_batchSize);
+        final batch = _firestore.batch();
+        for (final g in tanda) {
+          batch.delete(g.reference);
+        }
+        await batch.commit();
+      }
+      await grupo.reference.delete();
     }
   }
 

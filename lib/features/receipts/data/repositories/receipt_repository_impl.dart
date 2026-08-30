@@ -11,6 +11,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/config/environment.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../services/ai/ai_service.dart';
@@ -150,17 +151,21 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
           ? await draft.imageFile.readAsBytes()
           : await File(draft.ocrPath).readAsBytes();
 
+      // Sin Blaze no hay Storage, y sin este chequeo cada guardado se comia
+      // hasta 45 segundos esperando una subida que no podia funcionar.
       String imageUrl = '';
-      try {
-        final name = draft.imageFile.name.isNotEmpty
-            ? draft.imageFile.name
-            : draft.imageFile.path;
-        final ext = p.extension(name).isNotEmpty ? p.extension(name) : '.jpg';
-        imageUrl = await _storageService
-            .uploadReceiptImageBytes(uploadBytes, _userId, extension: ext)
-            .timeout(const Duration(seconds: 45));
-      } catch (e) {
-        _log.w('Storage upload failed; queda solo la miniatura', error: e);
+      if (Environment.enableCloudStorage) {
+        try {
+          final name = draft.imageFile.name.isNotEmpty
+              ? draft.imageFile.name
+              : draft.imageFile.path;
+          final ext = p.extension(name).isNotEmpty ? p.extension(name) : '.jpg';
+          imageUrl = await _storageService
+              .uploadReceiptImageBytes(uploadBytes, _userId, extension: ext)
+              .timeout(const Duration(seconds: 45));
+        } catch (e) {
+          _log.w('Storage upload failed; queda solo la miniatura', error: e);
+        }
       }
 
       // Miniatura como respaldo: Storage necesita plan Blaze, esto no.

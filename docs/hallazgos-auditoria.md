@@ -35,17 +35,34 @@ regresión:
   (`$105600` en vez de `$ 1.056,00`), mientras el encabezado de la misma
   pantalla usaba `Money.format` correctamente.
 
-## Temas que aparecieron en varios lentes
+## Temas que aparecieron en varios lentes: VERIFICADOS Y RESUELTOS
 
-Sin verificar, pero que se repitan es señal de que vale mirarlos primero:
+Los cuatro se verificaron a mano el 2026-08-30. **Los cuatro eran reales.**
 
-1. **El borrado de cuenta no borra todo.** Fotos de tickets y grupos quedarían
-   huérfanos. Aparece en cuatro hallazgos distintos.
-2. **`Either` descartado en la UI.** Varias pantallas ignoran el resultado, así
-   que una escritura fallida no muestra nada o muestra lo contrario.
-3. **La subida a Firebase Storage que no existe.** Cada guardado intentaría
-   subir y esperar un timeout antes de caer a la miniatura.
-4. **Las reglas de grupos no validan que `shares` y `paidBy` sumen el total.**
+1. **El borrado de cuenta no borraba todo.** Firestore no borra las
+   subcolecciones al borrar el documento padre, así que la foto de cada ticket
+   quedaba en `receipts/{id}/media/thumb` **para siempre**: sin el uid, las
+   reglas impedían que nadie volviera a leerlas ni borrarlas. Tampoco se
+   borraban los grupos. Además de la cuota, incumplía el derecho de supresión.
+   **Arreglado**, cuidando el límite de 500 escrituras por batch (400 tickets
+   con su foto son 800 escrituras). Los grupos compartidos no se borran a
+   propósito: son datos de otras personas.
+2. **`Either` descartado en la UI.** Confirmado en dos lugares que tocan plata:
+   borrar un gasto de grupo, y editar el total de un ticket. Este último era el
+   peor: invalidaba el provider, así que un fallo mostraba de nuevo el valor
+   viejo y parecía que el cambio se guardó y se deshizo solo. **Arreglado.**
+3. **La subida a un Firebase Storage que no existe.** El peor de los cuatro:
+   cada guardado de ticket llamaba a Storage con **45 segundos de timeout**,
+   contra un servicio que exige Blaze y no está activo. Garantizado que falla,
+   en el camino crítico. **Arreglado** con `ENABLE_CLOUD_STORAGE`, apagado por
+   defecto.
+4. **Las reglas no validan que `shares` y `paidBy` sumen el total.** Real, pero
+   **no se puede arreglar en las reglas**: el lenguaje no tiene forma de sumar
+   los valores de un mapa, y guardar un total redundante no sirve porque el
+   cliente malicioso mentiría también ahí. Necesitaría validación server-side,
+   o sea Cloud Functions, o sea Blaze. Queda documentado en `firestore.rules`,
+   validado en el cliente, y **la UI ahora marca los gastos descuadrados** en
+   vez de sumarlos en silencio.
 
 ## El resto, por archivo
 

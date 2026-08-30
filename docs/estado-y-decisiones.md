@@ -69,6 +69,9 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - **Tests contra tres tickets uruguayos reales** pasados por un OCR real, no
   texto inventado: ver `test/assets/ocr/README.md`
 - **Grupos fase 1**: crear grupo, cargar gasto, dividir en partes iguales o por partes, balances de a pares. Sin invitaciones todavía
+- **Límite conocido de las reglas**: no pueden validar que el reparto de un
+  gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
+  Lo valida el cliente y la UI marca los descuadrados
 - **210 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta

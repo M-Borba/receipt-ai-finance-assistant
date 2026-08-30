@@ -66,7 +66,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
         onSave: (storeName, total, category, date) async {
           setState(() => _isSaving = true);
           final repo = ref.read(receiptRepositoryProvider);
-          await repo.updateReceipt(
+          final res = await repo.updateReceipt(
             id: receipt.id,
             storeName: storeName,
             totalCents: total,
@@ -74,7 +74,18 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
             receiptDate: date,
           );
           ref.invalidate(receiptDetailProvider(widget.receiptId));
-          if (mounted) setState(() => _isSaving = false);
+          if (!mounted) return;
+          setState(() => _isSaving = false);
+
+          // Sin esto, una escritura fallida cerraba la hoja, apagaba el spinner
+          // y volvia a mostrar el valor viejo: parecia que el cambio se guardo
+          // y despues se deshizo solo.
+          res.fold(
+            (f) => ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('No se pudo guardar el cambio. ${f.message}')),
+            ),
+            (_) {},
+          );
         },
       ),
     );

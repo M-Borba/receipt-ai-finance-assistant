@@ -139,6 +139,21 @@ service cloud.firestore {
         allow get, list: if signedIn()
           && request.auth.uid in resource.data.memberIds;
 
+        // LIMITE CONOCIDO: no se valida que `shares` ni `paidBy` sumen
+        // `amountCents`. No es un olvido: el lenguaje de reglas no tiene forma
+        // de sumar los valores de un mapa (no hay sum ni reduce, y .values()
+        // solo da una List sin operaciones aritmeticas). Guardar un total
+        // redundante no ayuda: un cliente malicioso mentiria tambien ahi.
+        //
+        // Quien valida es el cliente (GroupExpenseEntity.isBalanced, chequeado
+        // en GroupRepository.addExpense antes de escribir). Mientras el grupo
+        // tenga una sola persona el riesgo es cero. Con mas gente, un miembro
+        // podria escribir un reparto que no cierra y torcer los saldos; por eso
+        // la UI marca los gastos descuadrados en vez de sumarlos en silencio.
+        //
+        // Arreglarlo de verdad necesita validacion server-side, o sea Cloud
+        // Functions, o sea plan Blaze.
+
         // Escribir SI verifica contra el grupo de verdad. Sin esto cualquiera
         // podria crear un gasto en un grupo ajeno declarandose miembro en la
         // copia, y no habria forma de detectarlo. Escribir es raro comparado
