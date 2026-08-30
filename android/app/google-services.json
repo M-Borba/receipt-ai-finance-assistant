@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "148021503887",
+    "project_id": "mborba-proyect",
+    "storage_bucket": "mborba-proyect.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148021503887:android:0d0b769567e121275a0dfa",
+        "android_client_info": {
+          "package_name": "com.example.receipt_ai_finance_assistant"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "148021503887-308sbbm0svt755sk7kopdul06gbpkanu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYgne7av-CKtIhDMGBWC1c5shUte7VhOo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "148021503887-308sbbm0svt755sk7kopdul06gbpkanu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "148021503887-ngakvankol5puhhls740llv05e0lfrpp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.receiptAiFinanceAssistant"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:148021503887:android:d46766ef325dcfc55a0dfa",
+        "android_client_info": {
+          "package_name": "com.mborba.financialassistant"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "148021503887-308sbbm0svt755sk7kopdul06gbpkanu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYgne7av-CKtIhDMGBWC1c5shUte7VhOo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "148021503887-308sbbm0svt755sk7kopdul06gbpkanu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "148021503887-ngakvankol5puhhls740llv05e0lfrpp.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.receiptAiFinanceAssistant"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

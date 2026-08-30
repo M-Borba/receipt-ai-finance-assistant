@@ -36,9 +36,15 @@ service-account*.json
 # Firebase
 # firebase.json, .firebaserc y firestore.indexes.json SI se versionan:
 # son configuracion de deploy, no secretos.
-google-services.json
+#
+# android/app/google-services.json SE VERSIONA, no va aca. No es un secreto:
+# tiene el id del proyecto, el id de la app y la API key de Android, que viaja
+# dentro de cada APK y cualquiera puede extraer descomprimiendolo. Lo que
+# protege los datos son las reglas de Firestore, no esconder este archivo.
+# Igual que lib/firebase_options.dart, que ya se versiona con la clave web.
+# Estaba ignorado Y el plugin de Google lo exige, asi que el CI no podia
+# compilar el APK: el mismo bug que ya tuvimos con .env.
 GoogleService-Info.plist
-android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 .firebase/
 firebase-debug.log
