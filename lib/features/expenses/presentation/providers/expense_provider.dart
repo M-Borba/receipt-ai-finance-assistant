@@ -45,33 +45,41 @@ class ExpenseActions extends _$ExpenseActions {
           storeName: storeName,
           note: note,
         );
-    if (!ref.mounted) return null;
-    return result.fold(
-      (failure) {
-        state = AsyncValue.error(failure.message, StackTrace.current);
-        return failure.message;
-      },
-      (_) {
-        state = const AsyncValue.data(null);
-        return null;
-      },
-    );
+    // El valor que se devuelve sale SIEMPRE del resultado. Antes habia un
+    // `if (!ref.mounted) return null` antes del fold, y como en el contrato de
+    // este metodo null significa EXITO, una escritura fallida mientras la
+    // pantalla se cerraba se reportaba como guardada: el gasto se perdia y la
+    // UI decia que estaba todo bien.
+    //
+    // Lo que si depende de `mounted` es tocar `state`: eso revienta si el
+    // provider ya se descarto.
+    final mensaje = result.fold((f) => f.message, (_) => null);
+    if (ref.mounted) {
+      state = mensaje == null
+          ? const AsyncValue.data(null)
+          : AsyncValue.error(mensaje, StackTrace.current);
+    }
+    return mensaje;
   }
 
   Future<String?> delete(String id) async {
     state = const AsyncValue.loading();
     final result = await ref.read(expenseRepositoryProvider).deleteExpense(id);
-    if (!ref.mounted) return null;
-    return result.fold(
-      (failure) {
-        state = AsyncValue.error(failure.message, StackTrace.current);
-        return failure.message;
-      },
-      (_) {
-        state = const AsyncValue.data(null);
-        return null;
-      },
-    );
+    // El valor que se devuelve sale SIEMPRE del resultado. Antes habia un
+    // `if (!ref.mounted) return null` antes del fold, y como en el contrato de
+    // este metodo null significa EXITO, una escritura fallida mientras la
+    // pantalla se cerraba se reportaba como guardada: el gasto se perdia y la
+    // UI decia que estaba todo bien.
+    //
+    // Lo que si depende de `mounted` es tocar `state`: eso revienta si el
+    // provider ya se descarto.
+    final mensaje = result.fold((f) => f.message, (_) => null);
+    if (ref.mounted) {
+      state = mensaje == null
+          ? const AsyncValue.data(null)
+          : AsyncValue.error(mensaje, StackTrace.current);
+    }
+    return mensaje;
   }
 }
 

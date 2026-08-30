@@ -176,10 +176,10 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
       ),
       body: receiptAsync.when(
         data: (receipt) => receipt == null
-            ? const Center(child: Text('Receipt not found'))
+            ? const Center(child: Text('No se encontró el ticket'))
             : _buildContent(context, receipt),
         loading: () => const LoadingIndicator(),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text('No se pudo cargar: $e')),
       ),
     );
   }
@@ -334,7 +334,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Items', style: Theme.of(context).textTheme.titleMedium),
+        Text('Productos', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         const Divider(color: AppColors.borderDark),
         ...items.map((item) => _ItemRow(item: item)),
@@ -373,7 +373,7 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('OCR Confidence', style: Theme.of(context).textTheme.bodySmall),
+            Text('Confianza del OCR', style: Theme.of(context).textTheme.bodySmall),
             Text('$pct%', style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           ],
         ),
@@ -405,7 +405,7 @@ class _FullScreenImageViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Receipt Image', style: TextStyle(color: Colors.white)),
+        title: const Text('Foto del ticket', style: TextStyle(color: Colors.white)),
       ),
       body: Center(
         child: InteractiveViewer(
@@ -496,7 +496,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
     final total = Money.parse(_totalCtrl.text);
     if (total == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid total amount')),
+        const SnackBar(content: Text('El monto no es válido')),
       );
       return;
     }
@@ -524,7 +524,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Edit Receipt', style: Theme.of(context).textTheme.titleLarge),
+                Text('Editar ticket', style: Theme.of(context).textTheme.titleLarge),
                 IconButton(
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.pop(context),
@@ -546,7 +546,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
             const SizedBox(height: 20),
 
             // Total amount
-            Text('Total amount', style: Theme.of(context).textTheme.bodySmall),
+            Text('Monto total', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             TextField(
               controller: _totalCtrl,
@@ -559,7 +559,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
             const SizedBox(height: 20),
 
             // Date
-            Text('Receipt date', style: Theme.of(context).textTheme.bodySmall),
+            Text('Fecha del ticket', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             InkWell(
               onTap: _pickDate,
@@ -574,7 +574,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
             const SizedBox(height: 20),
 
             // Category
-            Text('Category', style: Theme.of(context).textTheme.bodySmall),
+            Text('Categoría', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -631,7 +631,7 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Save changes', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    : const Text('Guardar cambios', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
               ),
             ),
           ],

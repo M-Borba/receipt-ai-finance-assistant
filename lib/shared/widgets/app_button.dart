@@ -92,7 +92,7 @@ class GoogleSignInButton extends StatelessWidget {
                     errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Text('Continue with Google'),
+                  const Text('Continuar con Google'),
                 ],
               ),
       ),

@@ -19,7 +19,7 @@ class ReceiptListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Receipts'),
+        title: const Text('Tickets'),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
@@ -41,7 +41,7 @@ class ReceiptListScreen extends ConsumerWidget {
         onPressed: () => context.go('/scan'),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Receipt', style: TextStyle(color: Colors.white)),
+        label: const Text('Agregar ticket', style: TextStyle(color: Colors.white)),
       ),
     );
   }

@@ -83,7 +83,7 @@ class ExpensesScreen extends ConsumerWidget {
                     color: AppColors.primary,
                   ),
             ),
-            Text('Total spending', style: Theme.of(context).textTheme.bodySmall),
+            Text('Gastado', style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
@@ -109,7 +109,7 @@ class ExpensesScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            Text('Breakdown', style: Theme.of(context).textTheme.titleMedium),
+            Text('Por categoría', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 20),
             SizedBox(
               height: 200,
@@ -155,7 +155,7 @@ class ExpensesScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Por categoría', style: Theme.of(context).textTheme.titleMedium),
+            Text('Detalle', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             ...sorted.map((e) => _CategoryRow(
                   category: e.key,

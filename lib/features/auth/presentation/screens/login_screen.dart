@@ -124,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           const SizedBox(height: 24),
           AppButton(
-            label: 'Sign In',
+            label: 'Entrar',
             isLoading: authState.isLoading,
             width: double.infinity,
             onPressed: () {
@@ -161,7 +161,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text("Don't have an account?", style: Theme.of(context).textTheme.bodyMedium),
         TextButton(
           onPressed: () => context.go('/auth/register'),
-          child: const Text('Create one'),
+          child: const Text('Creá una'),
         ),
       ],
     );

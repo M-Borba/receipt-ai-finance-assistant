@@ -81,3 +81,8 @@ coverage/
 test/assets/*.jpg
 test/assets/*.jpeg
 test/assets/*.png
+
+# Archivos de sondeo que escriben los agentes de auditoria para verificar un
+# hallazgo. Son temporales y se borran solos, pero si un agente muere a la
+# mitad quedan tirados y rompen `flutter test` y `flutter analyze`.
+test/zz_probe_*

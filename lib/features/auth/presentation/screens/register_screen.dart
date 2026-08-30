@@ -56,7 +56,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Create account', style: Theme.of(context).textTheme.displayMedium),
+              Text('Crear cuenta', style: Theme.of(context).textTheme.displayMedium),
               const SizedBox(height: 8),
               Text(
                 'Start tracking your finances today',
@@ -101,7 +101,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     const SizedBox(height: 32),
                     AppButton(
-                      label: 'Create Account',
+                      label: 'Crear cuenta',
                       isLoading: authState.isLoading,
                       width: double.infinity,
                       onPressed: () {
@@ -121,10 +121,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Already have an account?', style: Theme.of(context).textTheme.bodyMedium),
+                  Text('¿Ya tenés cuenta?', style: Theme.of(context).textTheme.bodyMedium),
                   TextButton(
                     onPressed: () => context.go('/auth/login'),
-                    child: const Text('Sign in'),
+                    child: const Text('Entrar'),
                   ),
                 ],
               ),

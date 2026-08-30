@@ -240,7 +240,7 @@ class _SpendingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          const Text('Total spending this month',
+          const Text('Gastado este mes',
               style: TextStyle(color: Colors.white70, fontSize: 13)),
         ],
       ),
