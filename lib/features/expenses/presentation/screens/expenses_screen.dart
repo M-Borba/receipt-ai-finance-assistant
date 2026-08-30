@@ -122,7 +122,10 @@ class ExpensesScreen extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '\$${total.toStringAsFixed(0)}',
+                          // `total` son CENTAVOS. Sin Money.format esto mostraba
+                          // 105600 en el centro del donut, mientras el
+                          // encabezado de la MISMA pantalla mostraba $ 1.056,00.
+                          Money.format(total),
                           style: Theme.of(context).textTheme.headlineMedium,
                         ),
                         Text('total', style: Theme.of(context).textTheme.bodySmall),

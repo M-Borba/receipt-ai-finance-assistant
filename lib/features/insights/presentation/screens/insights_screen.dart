@@ -15,7 +15,7 @@ class InsightsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Insights'),
+        title: const Text('Insights'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_outlined),

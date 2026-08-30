@@ -69,7 +69,7 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - **Tests contra tres tickets uruguayos reales** pasados por un OCR real, no
   texto inventado: ver `test/assets/ocr/README.md`
 - **Grupos fase 1**: crear grupo, cargar gasto, dividir en partes iguales o por partes, balances de a pares. Sin invitaciones todavía
-- **206 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **210 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 
@@ -149,10 +149,22 @@ testear.
 genera `scanProvider`, no `scanNotifierProvider`.
 
 **Cuidado con `\$` al editar con heredocs.** En Dart `'\$'` es un escape válido,
-así que `'\${variable}'` compila perfecto y muestra el texto literal en
-pantalla. El analyzer no lo detecta. Ya pasó dos veces: en el prompt de la IA y
-en los avisos del dashboard. Verificar con:
-`grep -rn '\\\${' lib --include="*.dart" | grep -v "g.dart"`
+así que `'\${variable}'` y `'\$variable'` compilan perfecto y muestran el texto
+literal en pantalla. El analyzer no lo detecta.
+
+Ya pasó **tres** veces: en el prompt de la IA, en los avisos del dashboard, y en
+`MerchantTotal.signature`, donde devolvía la misma constante para todos los
+comercios y por eso los insights nunca se regeneraban.
+
+El grep que teníamos anotado **no detectaba la tercera forma**, porque solo
+buscaba `\${`. El bueno es:
+
+```bash
+grep -rnE '\\\$[a-zA-Z_{]' lib --include="*.dart" | grep -v "g.dart"
+```
+
+Un `\$` seguido de un espacio o de otro `$` es correcto (imprimir un signo de
+peso). Seguido de una letra o de `{`, casi siempre es el bug.
 
 **`flutter analyze` sin excluir `build/`** devuelve miles de errores ajenos.
 Ya está excluido en `analysis_options.yaml`.

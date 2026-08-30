@@ -104,7 +104,11 @@ class MerchantTotal extends Equatable {
     required this.visits,
   });
 
-  String get signature => '\$name:\$totalCents:\$visits';
+  /// Ojo con los `\$`: en Dart `'\$name'` es un signo de peso escapado seguido
+  /// de texto, no una interpolacion. Compila, el analyzer no dice nada, y
+  /// devuelve la misma constante para todos los comercios. Comparar con
+  /// `_categorySignature`, que si interpola.
+  String get signature => '$name:$totalCents:$visits';
 
   Map<String, dynamic> toPromptMap() => {
         'name': name,

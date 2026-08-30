@@ -101,4 +101,35 @@ void main() {
       expect(a, isNot(equals(b)));
     });
   });
+
+  group('MerchantTotal.signature (regresion)', () {
+    test('interpola de verdad, no devuelve una constante', () {
+      const a = MerchantTotal(name: 'Tienda Inglesa', totalCents: 105600, visits: 3);
+      const b = MerchantTotal(name: 'Devoto', totalCents: 42000, visits: 1);
+      // Tenia los `$` escapados y devolvia el texto literal
+      // "$name:$totalCents:$visits" para TODOS los comercios.
+      expect(a.signature, isNot(b.signature));
+      expect(a.signature, contains('Tienda Inglesa'));
+      expect(a.signature, contains('105600'));
+      expect(a.signature, isNot(contains(r'$name')));
+    });
+
+    test('dos resumenes con comercios distintos NO son iguales', () {
+      // Es el punto de toda la clase: si comparan iguales, los insights no se
+      // regeneran y quedan mostrando datos viejos.
+      MonthlySpendingSummary conComercio(String nombre, int cents) =>
+          MonthlySpendingSummary(
+            month: DateTime(2026, 8),
+            totalCents: 200000,
+            expenseCount: 5,
+            categoryTotals: const {},
+            topMerchants: [
+              MerchantTotal(name: nombre, totalCents: cents, visits: 2),
+            ],
+          );
+      expect(conComercio('Devoto', 100000) == conComercio('Ta-Ta', 100000), isFalse);
+      expect(conComercio('Devoto', 100000) == conComercio('Devoto', 999), isFalse);
+      expect(conComercio('Devoto', 100000) == conComercio('Devoto', 100000), isTrue);
+    });
+  });
 }
