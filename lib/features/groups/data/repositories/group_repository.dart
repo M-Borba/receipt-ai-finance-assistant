@@ -66,10 +66,13 @@ class GroupRepository {
   }
 
   Stream<List<GroupExpenseEntity>> watchExpenses(String groupId) {
-    return _expenses(groupId).snapshots().map((s) => s.docs
-        .map((d) => GroupExpenseModel.fromFirestore(d, groupId))
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date)));
+    return _expenses(groupId)
+        .where('memberIds', arrayContains: _user.uid)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => GroupExpenseModel.fromFirestore(d, groupId))
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date)));
   }
 
   Future<Either<Failure, GroupEntity>> createGroup({
