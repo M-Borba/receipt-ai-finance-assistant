@@ -33,6 +33,7 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **La miniatura va en subcolección** | En el documento del ticket, `watchReceipts` se traería 20 miniaturas por snapshot: megabytes de datos móviles por cada apertura de la lista. |
 | **La miniatura lleva su propio `userId`** | Alternativa era `get()` del ticket padre dentro de la regla, y cada `get()` en una regla es una lectura facturada, en cada evaluación. |
 | **`rawOcrText` NO se persiste** | Era el texto completo de cada compra guardado para siempre, y no lo leía nadie. Exposición sin beneficio. Se usa durante el escaneo (vive en el `ReceiptDraft`) y se descarta. Los documentos viejos se siguen leyendo. |
+| **La memoria del usuario gana sobre todo** | El orden es: lo que vos elegiste antes para ese comercio, después las reglas locales, después la IA. Nadie sabe mejor que vos en qué gastás, y los comercios chicos (que son la mayoría) nunca van a estar en una lista de cadenas. Se guarda en **un solo documento** en `users/{uid}/preferences/merchants`: se lee entero en cada escaneo, así cuesta una lectura y no una por comercio. En Firestore y no en el navegador, porque la app se usa en el celular y en la computadora. |
 | **Clasificación local primero, IA después** | El clasificador de comercios corre en el dispositivo: gratis, instantáneo, offline. La IA quedó como plan B. Antes era al revés, y como la IA apunta a `localhost` no funcionaba nunca en producción. |
 | **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
 | **Sin tests de reglas de Firestore** | Requieren el emulador (JAR, Java 11+) y `@firebase/rules-unit-testing` (solo JS), o sea Node en un repo Dart puro. Se pospuso a conciencia. **Ver el gatillo más abajo.** |
@@ -63,6 +64,9 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
   convenciones de separador** (`1.234,56` y `1,056.00`: los e-Ticket de DGI usan
   la segunda, al revés de lo que se asumía)
 - Clasificador de comercios uruguayos on-device
+- **Memoria de comercios**: la app aprende con qué categoría clasificás cada
+  comercio y la reusa. Va antes que las reglas fijas, porque tu carnicería del
+  barrio no está ni va a estar en ninguna lista de cadenas
 - Moneda y fechas por locale
 - Foto del ticket legible en Firestore, ampliable con zoom desde el detalle
 - CI/CD en GitHub Actions, PWA instalable
@@ -72,7 +76,7 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **215 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **221 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 

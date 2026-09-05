@@ -74,7 +74,11 @@ Usa exactamente el identificador en ingles de la categoria, no la traduccion.
       return ExpenseCategory.other;
     }
 
-    final itemsList = items.map((i) => '- ${i.name}: \$${i.totalPriceCents}').join('\n');
+    // Los precios van en centavos: mandarlos con signo de pesos le decia al
+    // modelo 100 veces el valor real ("$66621" por un item de $666,21).
+    final itemsList = items
+        .map((i) => '- ${i.name}: ${Money.format(i.totalPriceCents)}')
+        .join('\n');
     final prompt = '''
 Receipt items from "${storeName ?? 'unknown store'}":
 $itemsList

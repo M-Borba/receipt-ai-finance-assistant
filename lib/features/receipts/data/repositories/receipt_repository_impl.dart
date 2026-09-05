@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,6 +17,7 @@ import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../services/ai/ai_service.dart';
 import '../../../../services/image/image_compression_service.dart';
+import '../../../../services/classification/merchant_memory.dart';
 import '../../../../services/image/thumbnail_service.dart';
 import '../../../../services/ocr/ocr_service.dart';
 import '../../../../services/ocr/ocr_service_factory.dart';
@@ -48,6 +50,21 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
   final ImageCompressionService _imageCompressor;
   final OcrService _ocrService;
   final _thumbnails = const ThumbnailService();
+
+  MerchantMemory? _memoryCache;
+  String? _memoryUid;
+
+  /// Se reusa la instancia porque cachea el mapa de comercios en memoria: una
+  /// nueva en cada acceso releeria Firestore en cada escaneo. Se recrea si
+  /// cambio el usuario, para no mezclar la memoria de dos cuentas.
+  MerchantMemory get _memory {
+    final uid = _userId;
+    if (_memoryCache == null || _memoryUid != uid) {
+      _memoryCache = MerchantMemory(firestore: _firestore, userId: uid);
+      _memoryUid = uid;
+    }
+    return _memoryCache!;
+  }
   final _log = Logger();
   final _uuid = const Uuid();
 
@@ -109,12 +126,22 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       // 2. OCR
       final ocrResult = await _ocrService.processImage(ocrPath);
 
-      // 3. Clasificar. Si la IA no esta disponible cae al fallback por
-      //    palabras clave, asi que nunca bloquea el flujo.
-      final category = await _aiService.classifyExpense(
-        items: ocrResult.items,
-        storeName: ocrResult.storeName,
-      );
+      // 3. Clasificar, en orden de mejor a peor senal:
+      //
+      //    a) lo que VOS elegiste antes para este mismo comercio. Le gana a
+      //       todo: tu carniceria del barrio no esta en ninguna lista de
+      //       cadenas, pero si la clasificaste una vez no hay que preguntarte
+      //       de nuevo.
+      //    b) las reglas locales por marca y por producto.
+      //    c) la IA, si esta disponible.
+      //
+      //    Ninguna de las tres bloquea el flujo si falla.
+      final recordada = await _memory.categoryFor(ocrResult.storeName);
+      final category = recordada ??
+          await _aiService.classifyExpense(
+            items: ocrResult.items,
+            storeName: ocrResult.storeName,
+          );
 
       // Nada se escribio todavia: el usuario revisa y confirma.
       return Right(ReceiptDraft(
@@ -214,6 +241,11 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       }
 
       await batch.commit();
+
+      // Recien aca se aprende, no al escanear: lo que importa es la categoria
+      // que la persona CONFIRMO, que puede ser distinta de la que se adivino.
+      // Que falle no puede tumbar un guardado que ya se hizo.
+      unawaited(_memory.remember(draft.storeName, draft.category));
 
       return Right(receipt);
     } on StorageException catch (e) {
@@ -325,6 +357,10 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       }
 
       await batch.commit();
+
+      // Editar la categoria de un ticket es la correccion mas explicita que
+      // existe: es exactamente el momento en que hay que aprender.
+      unawaited(_memory.remember(storeName, category));
 
       final doc = await _receiptsCol.doc(id).get();
       return Right(ReceiptModel.fromFirestore(doc));
