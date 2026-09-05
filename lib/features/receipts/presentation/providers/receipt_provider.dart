@@ -94,16 +94,23 @@ class ReceiptActions extends _$ReceiptActions {
   Future<bool> delete(String id) async {
     state = const AsyncValue.loading();
     final result = await ref.read(receiptRepositoryProvider).deleteReceipt(id);
-    if (!ref.mounted) return false;
-    return result.fold(
-      (failure) {
-        state = AsyncValue.error(failure.message, StackTrace.current);
-        return false;
-      },
-      (_) {
-        state = const AsyncValue.data(null);
-        return true;
-      },
-    );
+
+    // El valor que se devuelve sale SIEMPRE del resultado. Antes habia un
+    // `if (!ref.mounted) return false` antes del fold, y este notifier es
+    // autoDispose al que solo se accede con `read`: quedaba descartado durante
+    // los tres viajes a Firestore de deleteReceipt, asi que TODOS los borrados
+    // devolvian false y la pantalla mostraba "No se pudo borrar" aunque el
+    // ticket se hubiera borrado bien.
+    //
+    // Lo unico que depende de `mounted` es tocar `state`, que revienta si el
+    // provider ya murio. Es la misma trampa que ExpenseActions.
+    final ok = result.isRight();
+    if (ref.mounted) {
+      state = result.fold(
+        (f) => AsyncValue.error(f.message, StackTrace.current),
+        (_) => const AsyncValue.data(null),
+      );
+    }
+    return ok;
   }
 }

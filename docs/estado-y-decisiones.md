@@ -72,7 +72,7 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **213 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **215 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 
@@ -130,7 +130,15 @@ Confirmado funcionando en un celular real por el usuario.
 
 ## Trampas conocidas
 
-**Un `if (!ref.mounted) return null` puede significar "salio bien".** Pasó en
+**Un `if (!ref.mounted) return X` puede significar "salió bien".** Apareció dos
+veces: en `ExpenseActions` (donde `null` era éxito) y en `ReceiptActions` (donde
+`false` era fallo, así que el 100% de los borrados mostraba error aunque
+funcionaran). Los notifiers autoDispose a los que solo se accede con `read`
+quedan descartados apenas empieza el `await`, así que esa rama **es la normal, no
+la excepción**. La regla: el valor devuelto sale del resultado, siempre; lo único
+que depende de `mounted` es tocar `state`.
+
+**Detalle original:** Pasó en
 `ExpenseActions`, donde el contrato del método era "null es éxito": una
 escritura fallida mientras la pantalla se cerraba se reportaba como guardada y
 el gasto se perdía en silencio. La regla: el valor que se devuelve sale del

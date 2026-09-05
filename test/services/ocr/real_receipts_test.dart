@@ -193,4 +193,29 @@ void main() {
       expect(r.rawText, contains('CARNE VACUNA'));
     });
   });
+
+  group('el total no puede salir de otra linea (regresion)', () {
+    test('sin la linea del TOTAL devuelve null, no un numero de mas abajo', () {
+      for (final name in ['carniceria', 'panaderia', 'all_in_one']) {
+        final texto = fixture(name);
+        // Se saca la linea que trae el total pagadero.
+        final recortado = texto
+            .split('\n')
+            .where((l) => !RegExp(r'^\s*TOTAL\b', caseSensitive: false).hasMatch(l))
+            .join('\n');
+
+        final t = parser.extractTotal(recortado);
+        // El patron usaba `\s*`, que incluye el salto de linea, asi que
+        // agarraba el primer numero de la linea siguiente: $22,00 en un ticket
+        // de $1.056,00. Un numero plausible y equivocado es peor que ninguno.
+        expect(t, isNull, reason: '$name devolvio $t');
+      }
+    });
+
+    test('con el ticket completo sigue saliendo el total correcto', () {
+      expect(parser.extractTotal(fixture('carniceria')), 105600);
+      expect(parser.extractTotal(fixture('panaderia')), 41114);
+      expect(parser.extractTotal(fixture('all_in_one')), 76800);
+    });
+  });
 }

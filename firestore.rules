@@ -73,7 +73,18 @@ service cloud.firestore {
           && request.resource.data.data is string
           && request.resource.data.data.size() < 700000;
         allow update: if owns() && claimsOwnership() && userIdIsImmutable();
-        allow delete: if owns();
+
+        // `resource == null` es un documento que no existe, y borrarlo es una
+        // operacion nula. Sin este caso, `owns()` evaluaba
+        // `resource.data.userId` sobre null, la evaluacion abortaba y denegaba.
+        //
+        // Importa porque el borrado de un ticket es un batch ATOMICO que
+        // incluye esta miniatura sin condicion. Si la miniatura nunca se pudo
+        // generar (un HEIC del carrete que `package:image` no decodifica), el
+        // batch entero se caia: el ticket quedaba imposible de borrar para
+        // siempre, y su gasto seguia sumando en el dashboard y contra el
+        // presupuesto, sin ninguna salida desde la app.
+        allow delete: if signedIn() && (resource == null || owns());
       }
     }
 

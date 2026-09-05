@@ -39,7 +39,11 @@ class ReceiptTextParser {
     r'(?<![a-záéíóúñ])'
     r'(?:total\s+a\s+pagar|importe\s+total|total\s+general|grand\s+total|'
     r'amount\s+due|total|importe|neto\s+a\s+pagar)'
-    r'\s*:?\s*(?:[\$€£]|ars|mxn|clp|cop|pen|uyu|usd)?\s*'
+    // `[ \t]` y no `\s`: `\s` incluye el salto de linea, asi que el monto
+    // podia salir de la linea SIGUIENTE al keyword. Sin la linea del TOTAL,
+    // carniceria.txt devolvia $22,00 en un ticket de $1.056,00, tomando el
+    // primer numero que encontraba mas abajo. Lo correcto es no devolver nada.
+    r'[ \t]*:?[ \t]*(?:[\$€£]|ars|mxn|clp|cop|pen|uyu|usd)?[ \t]*'
     // Sin `r` a proposito: este tramo interpola _amount.
     '($_amount)',
     caseSensitive: false,
