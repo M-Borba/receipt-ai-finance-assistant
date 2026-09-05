@@ -207,13 +207,24 @@ firebase deploy --only hosting --project mborba-proyect
 firebase deploy --only firestore:rules,firestore:indexes --project mborba-proyect
 ```
 
+## Infraestructura: qué hay y qué no
+
+**Firebase Hosting es el único hosting, y alcanza.** Sirve la app con CDN,
+HTTPS y dominio, gratis. Vercel, Netlify o similares serían un segundo lugar
+donde desplegar lo mismo: otra cuenta que mantener y dos versiones que pueden
+quedar desincronizadas. No suman nada acá.
+
+**El deploy automático anda.** El secret `FIREBASE_SERVICE_ACCOUNT` está
+puesto y el job "Web a Firebase Hosting" pasa en cada push a `main`. No hace
+falta desplegar a mano.
+
+**El job del APK se sacó** (2026-09-05). Fallaba siempre y solo se usa la web.
+Un job permanentemente en rojo entrena a ignorar el CI: cuando todo está en
+rojo, un rojo nuevo no dice nada. La config de Android quedó arreglada, así que
+volver a agregarlo es recuperar el job del historial.
+
 ## Pendientes de infraestructura
 
-- **El repo no tiene ni un commit.** ~200 archivos sin versionar. El CI y el
-  deploy automático no arrancan hasta el primer push.
-- **Falta el secret `FIREBASE_SERVICE_ACCOUNT`** en GitHub Actions para que el
-  deploy corra solo. Se genera en Firebase Console → Configuración → Cuentas de
-  servicio.
 - **Rotar el client secret de OAuth** que estuvo suelto en el directorio del
   repo (`client_secret_*.json`, ya gitignoreado).
 - **Firebase Storage está sin activar.** No hace falta mientras se use la

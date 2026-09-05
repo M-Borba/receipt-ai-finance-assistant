@@ -41,32 +41,12 @@ jobs:
           projectId: mborba-proyect
           channelId: live
 
-  android:
-    name: APK para instalacion directa
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
-
-      - run: flutter pub get
-      - run: dart run build_runner build --delete-conflicting-outputs
-
-      # Firma con la clave de debug (android/app/build.gradle.kts:35).
-      # Sirve para instalar a mano, NO para publicar en Play.
-      - run: flutter build apk --release
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: receiptai-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
+# El job del APK se saco el 2026-09-05. Solo se usa la web, y un job que falla
+# siempre entrena a ignorar el CI: cuando TODO esta en rojo, un rojo nuevo no
+# dice nada. Con esto, un rojo vuelve a significar que algo se rompio.
+#
+# La configuracion de Android quedo arreglada (paquete unificado en
+# com.mborba.financialassistant y google-services.json versionado), asi que
+# `flutter build apk --release` deberia andar en una maquina con el SDK. Para
+# volver a tenerlo en CI, recuperar este job con:
+#     git show 68215bc:.github/workflows/deploy.yml
