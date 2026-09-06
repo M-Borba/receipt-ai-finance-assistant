@@ -14,6 +14,7 @@ que sea un archivador de fotos de recibos.
 |---|---|
 | **[docs/estado-y-decisiones.md](docs/estado-y-decisiones.md)** | **Empezá acá.** Las decisiones tomadas **y sus motivos**, qué está construido, qué falta, **qué NO está verificado**, y las trampas conocidas que ya mordieron. |
 | [docs/grupos-y-division.md](docs/grupos-y-division.md) | Grupos estilo Splitwise: modelo de datos, algoritmos de reparto y liquidación, reglas, fases. La fase 1 está hecha. |
+| **[docs/verificar-reglas.md](docs/verificar-reglas.md)** | **Correr antes de invitar a alguien a un grupo.** Diez minutos en el Rules Playground: los casos exactos que hay que probar. |
 | **[docs/auditoria-informe.md](docs/auditoria-informe.md)** | Auditoría **verificada**: 26 hallazgos confirmados, ordenados por impacto, con el arreglo de cada uno. Los cuatro peores ya están arreglados. **Es la lista de trabajo pendiente.** |
 | [docs/hallazgos-auditoria.md](docs/hallazgos-auditoria.md) | Los hallazgos crudos de la primera pasada, sin verificar. Ya superado por el informe de arriba. |
 | [SETUP.md](SETUP.md) | Puesta a punto de Firebase, Ollama y el entorno. Algunas partes están desactualizadas: manda el doc de decisiones. |

@@ -38,15 +38,24 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
 | **Sin tests de reglas de Firestore** | Requieren el emulador (JAR, Java 11+) y `@firebase/rules-unit-testing` (solo JS), o sea Node en un repo Dart puro. Se pospuso a conciencia. **Ver el gatillo más abajo.** |
 | **Config en `assets/config/app.env`, versionada** | Va dentro del binario igual, así que no puede tener secretos. `.env` quedó gitignoreado y sin uso. Antes `.env` era asset obligatorio Y estaba gitignoreado: ningún clone limpio compilaba. |
+| **Los gastos de grupo NO llevan copia de `memberIds`** | El diseño original la desnormalizaba para no pagar un `get()` por evaluación. Se revirtió por dos motivos. Primero: la copia queda vieja cuando alguien se suma, así que quien entra no vería ningún gasto anterior, y no puede arreglarlo (para actualizarlos necesitaría listarlos, que es lo que la regla le niega). Segundo: la condición `esDelGrupo(groupId)` no menciona `resource`, así que Firestore la evalúa **una vez por consulta** y no una por documento. El ahorro que justificaba la copia no existía. Efecto secundario: la query ya no necesita filtro, que era la causa del `permission-denied` que se chocó en producción. |
 | **Los items se acotan al bloque del detalle** | Un e-Ticket de DGI tiene encabezado, detalle y pie. Sin acotar, el número de RUT entraba como un producto de $219.640.160,11 y las filas de la tabla de IVA entraban con el monto del total. Además: **ningún ítem puede costar más que el ticket entero**, que es la regla que limpia la basura sin depender de cómo el OCR cortó las columnas. |
 | **Google Sign-In por `signInWithPopup` en web** | `GoogleSignIn().signIn()` está deprecado en web justamente porque no devuelve un `idToken` confiable. Además había un meta tag `google-signin-client_id` en `index.html` con un client ID sin origen autorizado, que producía `origin_mismatch`. Se removió. |
 
-### Gatillo bloqueante
+### Gatillo bloqueante: ahora tiene una salida
 
-**Antes de que grupos llegue a manos de otra persona, hay que tener tests de las
-reglas de Firestore contra el emulador.** Hoy no existen. Mientras la app tiene
-un solo usuario, equivocarse solo expone tus propios datos. Con grupos hay gente
-ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
+**Antes de mandarle un link de invitación a otra persona, correr
+[docs/verificar-reglas.md](verificar-reglas.md).** Son diez minutos en el Rules
+Playground de la consola, más una prueba de punta a punta en incógnito con dos
+cuentas.
+
+No reemplaza los tests automáticos contra el emulador, que siguen pendientes,
+pero cubre los casos que importan sin sumar Java y Node a un repo Dart.
+
+Por qué importa, con evidencia: **tres errores de reglas en dos semanas**, uno
+descubierto recién al chocarlo en producción (commit `2b58a23`). Con un solo
+usuario, equivocarse te muestra un error. Con alguien más en el grupo,
+equivocarse le muestra tus gastos.
 
 ---
 
@@ -76,7 +85,7 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **221 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **219 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 
@@ -92,11 +101,7 @@ ajena leyendo documentos compartidos. Detalle en `docs/grupos-y-division.md`.
 3. **Notificaciones.** Hoy cero. Las push necesitan un servidor que mire los
    datos: el mismo Worker del punto 2, con un cron. En iPhone solo funcionan si
    la persona instaló el PWA en la pantalla de inicio.
-4. **Invitar gente a un grupo.** La fase 1 está hecha pero un grupo tiene una
-   sola persona: las reglas prohíben cambiar `memberIds`. El link de invitación
-   es justo la parte que expone datos a terceros, así que va después de los
-   tests de reglas.
-5. **Grupos fase 2 y 3.** Settle up, y la que importa: asignación por ítem
+4. **Grupos fase 2 y 3.** Settle up, y la que importa: asignación por ítem
    ("la cerveza la tomamos Juan y yo"). Ver `docs/grupos-y-division.md`.
 
 ---

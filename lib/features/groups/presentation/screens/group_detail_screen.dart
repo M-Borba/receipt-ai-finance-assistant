@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/format/money.dart';
@@ -51,7 +52,16 @@ class _Contenido extends ConsumerWidget {
     final uid = ref.watch(authStateProvider).value?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: Text(grupo.name)),
+      appBar: AppBar(
+        title: Text(grupo.name),
+        actions: [
+          IconButton(
+            tooltip: 'Invitar gente',
+            icon: const Icon(Icons.person_add_alt),
+            onPressed: () => _invitar(context, ref, grupo),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => showModalBottomSheet<void>(
           context: context,
@@ -98,6 +108,79 @@ class _Contenido extends ConsumerWidget {
 /// La vista de a pares es la de por defecto a proposito: decirle a alguien
 /// "pagale a Ana" cuando nunca gasto nada con Ana resulta rarisimo. La vista
 /// simplificada llega en la fase 2, con un switch.
+/// Crea un link de invitación y lo ofrece para copiar.
+Future<void> _invitar(
+    BuildContext context, WidgetRef ref, GroupEntity grupo) async {
+  final res = await ref.read(groupRepositoryProvider).createInvite(grupo);
+  if (!context.mounted) return;
+
+  res.fold(
+    (f) => ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(f.message))),
+    (url) => showDialog<void>(
+      context: context,
+      builder: (_) => _DialogoInvitacion(url: url),
+    ),
+  );
+}
+
+/// Muestra el link para copiar.
+///
+/// No se usa `share_plus` para no sumar una dependencia nativa a una app que
+/// corre en el navegador: copiar y pegar en WhatsApp es un paso mas y funciona
+/// en todos lados.
+class _DialogoInvitacion extends StatelessWidget {
+  const _DialogoInvitacion({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Invitar al grupo'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Mandale este link a quien quieras sumar. Quien lo tenga puede '
+            'entrar al grupo, así que compartilo solo con esa persona.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            url,
+            style: const TextStyle(fontSize: 12, color: AppColors.primary),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'El link vence en 7 días.',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: url));
+            if (!context.mounted) return;
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Link copiado')),
+            );
+          },
+          icon: const Icon(Icons.copy, size: 18),
+          label: const Text('Copiar'),
+        ),
+      ],
+    );
+  }
+}
+
 class _Resumen extends StatelessWidget {
   const _Resumen({required this.grupo, required this.gastos, required this.uid});
 
@@ -292,8 +375,8 @@ class _AvisoSolo extends StatelessWidget {
           SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Sos la única persona del grupo. Invitar gente con un link '
-              'llega en la próxima versión.',
+              'Sos la única persona del grupo. Tocá el ícono de arriba a la '
+              'derecha para invitar a alguien con un link.',
               style: TextStyle(fontSize: 13, height: 1.3),
             ),
           ),

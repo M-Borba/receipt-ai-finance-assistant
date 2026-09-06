@@ -18,7 +18,6 @@ GroupExpenseEntity gasto({
     mode: SplitMode.equal,
     paidBy: pago,
     shares: reparto,
-    memberIds: {...pago.keys, ...reparto.keys}.toList(),
     createdBy: 'ana',
     createdAt: DateTime(2026, 8, 29),
   );

@@ -13,7 +13,6 @@ class GroupExpenseModel extends GroupExpenseEntity {
     required super.mode,
     required super.paidBy,
     required super.shares,
-    required super.memberIds,
     required super.createdBy,
     required super.createdAt,
     super.receiptId,
@@ -33,7 +32,6 @@ class GroupExpenseModel extends GroupExpenseEntity {
       ),
       paidBy: _cents(data['paidBy']),
       shares: _cents(data['shares']),
-      memberIds: (data['memberIds'] as List?)?.cast<String>() ?? const [],
       createdBy: data['createdBy'] as String? ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       receiptId: data['receiptId'] as String?,
@@ -56,9 +54,6 @@ class GroupExpenseModel extends GroupExpenseEntity {
         'mode': mode.name,
         'paidBy': paidBy,
         'shares': shares,
-        // Copia para las reglas: sin esto habria que leer el grupo padre en
-        // cada evaluacion, y cada get() dentro de una regla se factura.
-        'memberIds': memberIds,
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
         if (receiptId != null) 'receiptId': receiptId,

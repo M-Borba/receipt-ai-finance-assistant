@@ -41,6 +41,30 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/groups/$(groupId)).data;
     }
 
+    // Que la escritura agregue al que la hace, y a NADIE mas.
+    //
+    // Se chequea el tamaño ademas de `hasAll` porque `hasAll` sola dejaria
+    // pasar que se agreguen varios de una: uno se agrega a si mismo y de paso
+    // mete a tres amigos, o peor, agrega a alguien a un grupo ajeno.
+    function soloMeAgregoAMi() {
+      return request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.memberIds.size() ==
+             resource.data.memberIds.size() + 1
+        && request.auth.uid in request.resource.data.memberIds
+        // Solo puede aparecer SU entrada nueva en el mapa de miembros.
+        && request.resource.data.members.diff(resource.data.members)
+             .affectedKeys() == [request.auth.uid].toSet();
+    }
+
+    function inviteValido(token, groupId) {
+      return token is string
+        && exists(/databases/$(database)/documents/invites/$(token))
+        && get(/databases/$(database)/documents/invites/$(token)).data.groupId
+             == groupId
+        && get(/databases/$(database)/documents/invites/$(token)).data.expiresAt
+             > request.time;
+    }
+
     function esDelGrupo(groupId) {
       return signedIn() && request.auth.uid in grupoDe(groupId).memberIds;
     }
@@ -133,22 +157,50 @@ service cloud.firestore {
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 80;
 
-      // Fase 1: renombrar y archivar, nada de tocar la membresia. Sumar gente
-      // llega con el link de invitacion, que necesita sus propias reglas Y los
-      // tests contra el emulador antes de que esto toque manos ajenas.
+      // Un miembro puede renombrar o archivar, pero NO tocar la membresia:
+      // ni sumar a nadie, ni sacar a nadie.
       allow update: if esMiembro() && seraMiembro()
         && request.resource.data.memberIds == resource.data.memberIds
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.currency == resource.data.currency;
 
+      // Sumarse a un grupo con un link de invitacion.
+      //
+      // Quien todavia no es miembro solo puede hacer UNA cosa: agregarse a si
+      // mismo, exactamente a si mismo, y solo si el token del link es valido.
+      // Todo lo demas del documento tiene que quedar igual.
+      //
+      // El token ES la credencial: quien lo tiene, entra. Por eso vence.
+      allow update: if signedIn()
+        && !(request.auth.uid in resource.data.memberIds)
+        && soloMeAgregoAMi()
+        && inviteValido(request.resource.data.inviteToken, groupId)
+        // Nada mas del grupo puede cambiar en la misma escritura.
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.createdBy == resource.data.createdBy;
+
       allow delete: if signedIn()
         && request.auth.uid == resource.data.createdBy;
 
       match /expenses/{expenseId} {
-        // Leer usa la copia desnormalizada de memberIds: es el camino
-        // caliente y un get() del grupo se factura en CADA evaluacion.
-        allow get, list: if signedIn()
-          && request.auth.uid in resource.data.memberIds;
+        // Autoriza mirando el GRUPO, no una copia dentro del gasto.
+        //
+        // El diseño original desnormalizaba memberIds en cada gasto para no
+        // pagar un get(). Se cambio por dos motivos:
+        //
+        // 1. La copia queda VIEJA cuando alguien se suma al grupo, asi que el
+        //    que entra no veria ningun gasto anterior, y no puede arreglarlo
+        //    el mismo: para actualizarlos necesitaria listarlos, que es justo
+        //    lo que la regla le niega.
+        // 2. Esta condicion no menciona `resource`, asi que Firestore la
+        //    evalua UNA VEZ para toda la consulta y no una vez por documento.
+        //    O sea una lectura extra en total, no una por gasto: el ahorro que
+        //    justificaba la copia no era tal.
+        //
+        // Efecto secundario bueno: la query no necesita ningun filtro para
+        // pasar, que es el error de permission-denied que ya se choco una vez.
+        allow get, list: if esDelGrupo(groupId);
 
         // LIMITE CONOCIDO: no se valida que `shares` ni `paidBy` sumen
         // `amountCents`. No es un olvido: el lenguaje de reglas no tiene forma
@@ -170,19 +222,42 @@ service cloud.firestore {
         // copia, y no habria forma de detectarlo. Escribir es raro comparado
         // con leer, asi que la lectura extra por gasto es barata.
         allow create: if esDelGrupo(groupId)
-          && request.resource.data.memberIds == grupoDe(groupId).memberIds
           && request.resource.data.createdBy == request.auth.uid
           && isMoneyCents(request.resource.data.amountCents)
           && request.resource.data.amountCents > 0
           && request.resource.data.date is timestamp;
 
         allow update: if esDelGrupo(groupId)
-          && request.resource.data.memberIds == resource.data.memberIds
           && isMoneyCents(request.resource.data.amountCents)
           && request.resource.data.amountCents > 0;
 
         allow delete: if esDelGrupo(groupId);
       }
+    }
+
+    // Links de invitacion a un grupo.
+    //
+    // Se puede LEER cualquier invite estando logueado, a proposito: el token es
+    // un UUID imposible de adivinar y es la credencial misma. Quien tiene el
+    // link puede leerlo; quien no, no puede enumerarlos (`list` esta denegado).
+    //
+    // El invite solo dice a que grupo pertenece y cuando vence. No expone
+    // gastos, ni saldos, ni quienes son los miembros.
+    match /invites/{token} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      // Solo un miembro del grupo puede crear un link para ese grupo, y no
+      // puede fabricar uno que no venza.
+      allow create: if esDelGrupo(request.resource.data.groupId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time;
+
+      // No se editan: se crea uno nuevo o se borra este.
+      allow update: if false;
+      allow delete: if signedIn()
+        && request.auth.uid == resource.data.createdBy;
     }
 
     // Todo lo no declarado queda denegado explícitamente.

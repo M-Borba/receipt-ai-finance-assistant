@@ -166,15 +166,9 @@ class AccountService {
       final miembros = (data['memberIds'] as List?)?.cast<String>() ?? const [];
       if (miembros.length > 1) continue;
 
-      // El filtro NO es opcional: la regla de list pide
-      // `uid in resource.data.memberIds`, y Firestore evalua la query contra su
-      // resultado POSIBLE, no contra los documentos. Sin el filtro rechaza la
-      // consulta entera con permission-denied. Ya paso una vez en produccion
-      // con esta misma coleccion.
-      final gastos = await grupo.reference
-          .collection('expenses')
-          .where('memberIds', arrayContains: userId)
-          .get();
+      // Sin filtro: la regla autoriza mirando el grupo padre, no una copia
+      // dentro del gasto.
+      final gastos = await grupo.reference.collection('expenses').get();
       // Un grupo puede tener muchos gastos: se corta en tandas para no pasar
       // el limite de 500 escrituras por batch.
       for (var i = 0; i < gastos.docs.length; i += _batchSize) {

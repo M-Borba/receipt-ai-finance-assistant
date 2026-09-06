@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:logger/logger.dart';
@@ -66,8 +67,10 @@ class GroupRepository {
   }
 
   Stream<List<GroupExpenseEntity>> watchExpenses(String groupId) {
+    // Sin filtro: la regla de lectura autoriza mirando el grupo padre, no una
+    // copia dentro del gasto, asi que no depende de `resource` y Firestore la
+    // evalua una vez para toda la consulta.
     return _expenses(groupId)
-        .where('memberIds', arrayContains: _user.uid)
         .snapshots()
         .map((s) => s.docs
             .map((d) => GroupExpenseModel.fromFirestore(d, groupId))
@@ -158,7 +161,6 @@ class GroupRepository {
         mode: mode,
         paidBy: paidBy,
         shares: shares,
-        memberIds: group.memberIds,
         createdBy: _user.uid,
         createdAt: DateTime.now(),
         receiptId: receiptId,
@@ -186,6 +188,107 @@ class GroupRepository {
       return const Right(unit);
     } catch (e, st) {
       _log.e('deleteExpense fallo', error: e, stackTrace: st);
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  /// Cuanto vive un link de invitacion.
+  ///
+  /// El token ES la credencial: quien lo tiene entra al grupo. Un link que no
+  /// vence es una llave que queda dando vueltas en un chat para siempre.
+  static const invitacionDura = Duration(days: 7);
+
+  CollectionReference get _invites => _firestore.collection('invites');
+
+  /// De donde cuelga el link de invitacion.
+  ///
+  /// En web sale de la URL actual, asi que en desarrollo apunta a localhost y
+  /// en produccion al dominio real sin configurar nada.
+  String get _baseUrl =>
+      kIsWeb ? Uri.base.origin : 'https://mborba-proyect.web.app';
+
+  /// Crea un link para invitar a alguien a [group].
+  ///
+  /// Devuelve la URL lista para compartir.
+  Future<Either<Failure, String>> createInvite(GroupEntity group) async {
+    try {
+      final token = _uuid.v4();
+      await _invites.doc(token).set({
+        'groupId': group.id,
+        // El nombre viaja en el invite porque quien todavia no es miembro NO
+        // puede leer el grupo: sin esto la pantalla de invitacion no podria
+        // decir a que grupo lo estan invitando.
+        'groupName': group.name,
+        'createdBy': _user.uid,
+        'createdAt': Timestamp.now(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(invitacionDura)),
+      });
+      return Right('$_baseUrl/join/$token');
+    } catch (e, st) {
+      _log.e('createInvite fallo', error: e, stackTrace: st);
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  /// Lo que se puede saber de una invitacion SIN haberla aceptado todavia.
+  Future<Either<Failure, ({String groupId, String groupName})>> peekInvite(
+      String token) async {
+    try {
+      final doc = await _invites.doc(token).get();
+      if (!doc.exists) {
+        return const Left(ValidationFailure('Este link no existe o ya se usó'));
+      }
+      final data = doc.data()! as Map<String, dynamic>;
+      final vence = (data['expiresAt'] as Timestamp?)?.toDate();
+      if (vence == null || vence.isBefore(DateTime.now())) {
+        return const Left(ValidationFailure(
+            'Este link venció. Pedile a quien te invitó que te mande uno nuevo.'));
+      }
+      return Right((
+        groupId: data['groupId'] as String? ?? '',
+        groupName: data['groupName'] as String? ?? 'un grupo',
+      ));
+    } catch (e, st) {
+      _log.e('peekInvite fallo', error: e, stackTrace: st);
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  /// Se suma al grupo usando el token del link.
+  ///
+  /// No se lee el grupo antes: quien todavia no es miembro no puede leerlo. Se
+  /// escribe a ciegas y **son las reglas las que deciden**, que es justo lo que
+  /// hay que verificar antes de mandarle un link a alguien.
+  Future<Either<Failure, String>> joinWithToken(String token) async {
+    try {
+      final vistazo = await peekInvite(token);
+      final inv = vistazo.fold((f) => null, (v) => v);
+      if (inv == null) {
+        return Left(vistazo.swap().getOrElse(
+            () => const ValidationFailure('Link inválido')));
+      }
+
+      final u = _user;
+      await _groups.doc(inv.groupId).update({
+        'memberIds': FieldValue.arrayUnion([u.uid]),
+        'members.${u.uid}': {
+          'displayName': u.displayName ?? u.email ?? 'Alguien',
+          'photoUrl': u.photoURL,
+          'joinedAt': Timestamp.now(),
+        },
+        // La regla necesita el token para validarlo, y la unica forma de
+        // hacerselo llegar es dentro del documento que se escribe.
+        'inviteToken': token,
+      });
+      return Right(inv.groupId);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        return const Left(ValidationFailure(
+            'No se pudo entrar al grupo. El link puede haber vencido.'));
+      }
+      return Left(ServerFailure(message: e.message ?? e.code));
+    } catch (e, st) {
+      _log.e('joinWithToken fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));
     }
   }

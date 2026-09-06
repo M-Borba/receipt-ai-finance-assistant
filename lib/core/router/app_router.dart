@@ -14,6 +14,7 @@ import '../../features/insights/presentation/screens/insights_screen.dart';
 import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
+import '../../features/groups/presentation/screens/join_group_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 
 part 'app_router.g.dart';
@@ -68,6 +69,16 @@ GoRouter appRouter(Ref ref) {
         path: '/auth/register',
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      // El link de invitacion. Fuera del shell a proposito: quien llega por un
+      // link no eligio ninguna seccion, y la barra de abajo lo distraeria de la
+      // unica decision que tiene que tomar.
+      GoRoute(
+        path: '/join/:token',
+        name: 'joinGroup',
+        builder: (context, state) => JoinGroupScreen(
+          token: state.pathParameters['token']!,
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) => MainShell(child: child),

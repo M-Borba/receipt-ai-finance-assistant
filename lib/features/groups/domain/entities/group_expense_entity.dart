@@ -20,7 +20,6 @@ class GroupExpenseEntity extends Equatable {
     required this.mode,
     required this.paidBy,
     required this.shares,
-    required this.memberIds,
     required this.createdBy,
     required this.createdAt,
     this.receiptId,
@@ -38,9 +37,6 @@ class GroupExpenseEntity extends Equatable {
 
   /// A quien le corresponde, y cuanto. Suma [amountCents].
   final Map<String, int> shares;
-
-  /// Copia para las reglas de Firestore.
-  final List<String> memberIds;
 
   final String createdBy;
   final DateTime createdAt;
@@ -61,6 +57,6 @@ class GroupExpenseEntity extends Equatable {
   @override
   List<Object?> get props => [
         id, groupId, description, amountCents, date, mode,
-        paidBy, shares, memberIds, createdBy, createdAt, receiptId,
+        paidBy, shares, createdBy, createdAt, receiptId,
       ];
 }
