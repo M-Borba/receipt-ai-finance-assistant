@@ -40,15 +40,22 @@ class AccountService {
     'budgets',
   ];
 
-  /// Subcolecciones que cuelgan de un documento de [_colecciones].
+  /// Documentos que cuelgan de un documento de [_colecciones], por RUTA FIJA.
   ///
   /// Firestore **no borra las subcolecciones al borrar el documento padre**.
   /// Sin esto, la foto de cada ticket quedaba en `receipts/{id}/media/thumb`
   /// para siempre: al borrarse la cuenta se pierde el uid, y las reglas piden
   /// `userId == request.auth.uid`, asi que nadie podia volver a leerlas ni
   /// borrarlas. Ademas de ocupar la cuota, incumple el derecho de supresion.
-  static const _subcolecciones = <String, List<String>>{
-    AppConstants.receiptsCollection: ['media'],
+  ///
+  /// Se listan por ruta fija y no recorriendo la subcoleccion **a proposito**:
+  /// la regla de `media` permite `get` pero NO `list`, asi que un
+  /// `.collection('media').get()` es una operacion de listado y Firestore la
+  /// rechaza entera. Ademas, saber el id de antemano ahorra una lectura por
+  /// ticket. Borrar un documento que no existe es una operacion nula y las
+  /// reglas ahora lo permiten.
+  static const _subdocumentos = <String, List<String>>{
+    AppConstants.receiptsCollection: ['media/thumb'],
   };
 
   /// Firestore limita cada batch a 500 escrituras.
@@ -97,7 +104,7 @@ class AccountService {
   }
 
   Future<void> _borrarColeccion(String coleccion, String userId) async {
-    final subs = _subcolecciones[coleccion] ?? const <String>[];
+    final subs = _subdocumentos[coleccion] ?? const <String>[];
 
     while (true) {
       final snap = await _firestore
@@ -125,13 +132,13 @@ class AccountService {
       }
 
       for (final doc in snap.docs) {
-        // Las subcolecciones primero: despues de borrar el padre siguen
-        // existiendo igual, pero ya no hay forma de llegar a ellas.
-        for (final sub in subs) {
-          final hijos = await doc.reference.collection(sub).get();
-          for (final hijo in hijos.docs) {
-            await anotar(hijo.reference);
-          }
+        // Los hijos primero: despues de borrar el padre siguen existiendo
+        // igual, pero ya no hay forma de llegar a ellos.
+        for (final ruta in subs) {
+          final partes = ruta.split('/');
+          await anotar(
+            doc.reference.collection(partes[0]).doc(partes[1]),
+          );
         }
         await anotar(doc.reference);
       }
@@ -159,7 +166,15 @@ class AccountService {
       final miembros = (data['memberIds'] as List?)?.cast<String>() ?? const [];
       if (miembros.length > 1) continue;
 
-      final gastos = await grupo.reference.collection('expenses').get();
+      // El filtro NO es opcional: la regla de list pide
+      // `uid in resource.data.memberIds`, y Firestore evalua la query contra su
+      // resultado POSIBLE, no contra los documentos. Sin el filtro rechaza la
+      // consulta entera con permission-denied. Ya paso una vez en produccion
+      // con esta misma coleccion.
+      final gastos = await grupo.reference
+          .collection('expenses')
+          .where('memberIds', arrayContains: userId)
+          .get();
       // Un grupo puede tener muchos gastos: se corta en tandas para no pasar
       // el limite de 500 escrituras por batch.
       for (var i = 0; i < gastos.docs.length; i += _batchSize) {

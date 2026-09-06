@@ -148,6 +148,21 @@ escritura fallida mientras la pantalla se cerraba se reportaba como guardada y
 el gasto se perdía en silencio. La regla: el valor que se devuelve sale del
 resultado, siempre; lo único que depende de `mounted` es tocar `state`.
 
+**Una query sin el filtro que la regla espera se rechaza ENTERA.** Confirmado
+en producción el 2026-08-31 (commit `2b58a23`, "Fix permission denied error on
+group expenses"), no es teoría. Firestore evalúa la consulta contra su resultado
+**posible**, no contra los documentos que existen: si la regla dice
+`uid in resource.data.memberIds`, la query necesita
+`.where('memberIds', arrayContains: uid)` aunque todos los documentos cumplan.
+
+Corolario que ya mordió dos veces más: **`get` y `list` son permisos distintos**.
+La regla de `receipts/{id}/media` permite `get` pero no `list`, así que
+`.collection('media').get()` (que es un listado) se rechaza. Cuando el id es
+conocido, ir directo al documento evita el problema y ahorra una lectura.
+
+Antes de escribir cualquier query nueva, mirar qué pide la regla de esa
+colección.
+
 **El service worker de Flutter cachea la app entera.** Después de un deploy, la
 pestaña vieja puede seguir sirviendo la versión anterior hasta que se recargue.
 Para probar en el momento: ventana de incógnito, o DevTools → Application →
