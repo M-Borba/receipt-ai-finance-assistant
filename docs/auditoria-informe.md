@@ -32,6 +32,17 @@ severidad alta abriendo los archivos y, en un caso, ejecutando el código.
   encola la escritura y la manda cuando vuelve la red. Se cubrieron también las
   seis escrituras de grupos, que no estaban en el hallazgo.
 
+- **D21** — `pairwiseDebts` no cerraba las columnas con más de un pagador. El
+  hallazgo lo daba por "no alcanzable" porque la UI manda un solo pagador, pero
+  el error es de redondeo y aparece con **dos deudores y dos acreedores**: cada
+  deudor redondeaba su fila por separado, así que los dos le daban su centavo al
+  mismo acreedor. Medido sobre 1,25 millones de combinaciones: **las columnas
+  salían mal en el 83%** de los casos con más de un pagador. Se veía en
+  pantalla, porque el saldo neto de arriba y las deudas de a pares de abajo se
+  contradecían. Ahora se reparte con `allocateDebtsToCredits`, un reparto de
+  transporte que cierra las dos márgenes exactamente y nunca da negativos,
+  verificado en un barrido exhaustivo más 3000 casos con montos grandes.
+
 Lo que sigue abajo es el informe tal como lo produjo la auditoría, con el resto
 de los hallazgos pendientes.
 

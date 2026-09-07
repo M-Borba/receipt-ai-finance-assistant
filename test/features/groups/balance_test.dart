@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_ai_finance_assistant/features/groups/domain/balance.dart';
 import 'package:receipt_ai_finance_assistant/features/groups/domain/entities/group_expense_entity.dart';
@@ -176,6 +178,171 @@ void main() {
       final b = pairwiseDebts(libro.reversed);
       expect(a, b);
       expect(a.map((d) => d.from), ['ana', 'juan']);
+    });
+  });
+
+  group('pairwiseDebts con varios pagadores Y varios deudores', () {
+    // El bug D21 necesita las dos cosas a la vez: con un solo deudor o un solo
+    // acreedor las cuentas cerraban igual, y por eso los tests viejos pasaban.
+    test('dos deudores y dos acreedores de un centavo cada uno', () {
+      // Ana y Zoe pusieron 1 centavo de mas cada una. Juan y Beto deben 1
+      // centavo cada uno. Repartiendo fila por fila, los dos deudores le daban
+      // su centavo al MISMO acreedor: uno cobraba 2 y el otro nada.
+      final libro = [
+        gasto(
+          total: 4,
+          pago: {'ana': 2, 'zoe': 2},
+          reparto: {'ana': 1, 'zoe': 1, 'juan': 1, 'beto': 1},
+        ),
+      ];
+      final cobra = <String, int>{};
+      for (final d in pairwiseDebts(libro)) {
+        cobra[d.to] = (cobra[d.to] ?? 0) + d.cents;
+      }
+      expect(cobra, {'ana': 1, 'zoe': 1});
+    });
+
+    test('las deudas siguen sumando el neto con la matriz completa', () {
+      final libro = [
+        gasto(
+          total: 10000,
+          pago: {'ana': 3333, 'zoe': 6667},
+          reparto: {'ana': 2500, 'zoe': 2500, 'juan': 2500, 'beto': 2500},
+          id: 'a',
+        ),
+        gasto(
+          total: 777,
+          pago: {'juan': 389, 'beto': 388},
+          reparto: {'ana': 194, 'zoe': 194, 'juan': 194, 'beto': 195},
+          id: 'b',
+        ),
+      ];
+      final neto = netBalances(libro);
+      final desdeDeudas = <String, int>{};
+      for (final d in pairwiseDebts(libro)) {
+        desdeDeudas[d.from] = (desdeDeudas[d.from] ?? 0) - d.cents;
+        desdeDeudas[d.to] = (desdeDeudas[d.to] ?? 0) + d.cents;
+      }
+      desdeDeudas.removeWhere((_, v) => v == 0);
+      expect(desdeDeudas, neto);
+    });
+  });
+
+  group('allocateDebtsToCredits', () {
+    List<int> sumasFila(List<List<int>> m) =>
+        [for (final f in m) f.fold<int>(0, (a, b) => a + b)];
+
+    List<int> sumasColumna(List<List<int>> m, int cols) => [
+          for (var c = 0; c < cols; c++)
+            m.fold<int>(0, (a, f) => a + f[c]),
+        ];
+
+    test('las dos margenes cierran exactamente en todos los casos chicos', () {
+      // Barrido exhaustivo: todas las particiones de un total hasta 10, de un
+      // lado y del otro. Es el invariante que rompia el reparto fila por fila.
+      List<List<int>> particiones(int total, int piezas) {
+        if (piezas == 1) return [[total]];
+        final salida = <List<int>>[];
+        for (var primero = 1; primero <= total - (piezas - 1); primero++) {
+          for (final resto in particiones(total - primero, piezas - 1)) {
+            salida.add([primero, ...resto]);
+          }
+        }
+        return salida;
+      }
+
+      var casos = 0;
+      for (var total = 1; total <= 10; total++) {
+        for (var nd = 1; nd <= 3; nd++) {
+          for (var nc = 1; nc <= 3; nc++) {
+            if (nd > total || nc > total) continue;
+            for (final deudas in particiones(total, nd)) {
+              for (final creditos in particiones(total, nc)) {
+                final m = allocateDebtsToCredits(deudas, creditos);
+                casos++;
+                expect(sumasFila(m), deudas,
+                    reason: 'filas: deudas=$deudas creditos=$creditos -> $m');
+                expect(sumasColumna(m, nc), creditos,
+                    reason: 'columnas: deudas=$deudas creditos=$creditos -> $m');
+                for (final f in m) {
+                  for (final v in f) {
+                    expect(v, greaterThanOrEqualTo(0),
+                        reason: 'negativo: deudas=$deudas creditos=$creditos');
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      expect(casos, greaterThan(2000));
+    });
+
+    test('las dos margenes cierran con montos y grupos grandes', () {
+      // Semilla fija: si algun dia falla, falla igual en todas las maquinas.
+      final rnd = Random(20260906);
+      for (var caso = 0; caso < 3000; caso++) {
+        final nd = 1 + rnd.nextInt(6);
+        final nc = 1 + rnd.nextInt(6);
+        final piezas = nd > nc ? nd : nc;
+        final total = piezas + rnd.nextInt(500000);
+
+        List<int> repartir(int n) {
+          final pesos = [for (var i = 0; i < n; i++) 1 + rnd.nextInt(50)];
+          final partes = splitLargestRemainder(total, pesos);
+          // Nadie puede quedar en cero: un acreedor de cero no es acreedor.
+          for (var i = 0; i < n; i++) {
+            if (partes[i] == 0) {
+              final mayor = partes.indexOf(partes.reduce((a, b) => a > b ? a : b));
+              partes[mayor] -= 1;
+              partes[i] += 1;
+            }
+          }
+          return partes;
+        }
+
+        final deudas = repartir(nd);
+        final creditos = repartir(nc);
+        final m = allocateDebtsToCredits(deudas, creditos);
+        expect(sumasFila(m), deudas, reason: 'filas caso $caso');
+        expect(sumasColumna(m, nc), creditos, reason: 'columnas caso $caso');
+        for (final f in m) {
+          for (final v in f) {
+            expect(v, greaterThanOrEqualTo(0), reason: 'negativo caso $caso');
+          }
+        }
+      }
+    });
+
+    test('reparte en proporcion a lo que puso cada acreedor', () {
+      final m = allocateDebtsToCredits([3000], [5500, 500]);
+      expect(m, [[2750, 250]]);
+    });
+
+    test('un gasto descuadrado no inventa deuda: reparte lo que se puede', () {
+      // Se debe 1000 en total pero los acreedores solo pusieron 600 de mas.
+      // Las dos margenes no pueden cerrar porque no suman lo mismo.
+      final m = allocateDebtsToCredits([600, 400], [300, 300]);
+      expect(sumasColumna(m, 2), [300, 300], reason: 'no cobra mas de su credito');
+      for (var f = 0; f < 2; f++) {
+        expect(sumasFila(m)[f], lessThanOrEqualTo([600, 400][f]));
+      }
+      for (final f in m) {
+        for (final v in f) {
+          expect(v, greaterThanOrEqualTo(0));
+        }
+      }
+    });
+
+    test('listas vacias y todo en cero no revientan', () {
+      expect(allocateDebtsToCredits([], [100]), isEmpty);
+      expect(allocateDebtsToCredits([100], []), [<int>[]]);
+      expect(allocateDebtsToCredits([0, 0], [0]), [[0], [0]]);
+    });
+
+    test('una magnitud negativa es un error de programacion, no un dato', () {
+      expect(() => allocateDebtsToCredits([-1], [1]), throwsArgumentError);
+      expect(() => allocateDebtsToCredits([1], [-1]), throwsArgumentError);
     });
   });
 

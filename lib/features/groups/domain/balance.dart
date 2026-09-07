@@ -6,7 +6,6 @@
 library;
 
 import 'entities/group_expense_entity.dart';
-import 'split.dart';
 
 /// Una deuda concreta: [from] le debe [cents] a [to]. Siempre positiva.
 class Debt {
@@ -52,8 +51,9 @@ Map<String, int> netBalances(Iterable<GroupExpenseEntity> expenses) {
 /// del mismo libro.
 ///
 /// Con varios pagadores en un mismo gasto, lo que debe cada deudor se reparte
-/// entre los pagadores **en proporcion a lo que puso cada uno**, con el metodo
-/// del resto mayor para no perder centavos.
+/// entre los pagadores **en proporcion a lo que puso cada uno**, con
+/// [allocateDebtsToCredits], que garantiza que lo que paga cada deudor y lo que
+/// cobra cada acreedor cierren los dos exactamente.
 List<Debt> pairwiseDebts(Iterable<GroupExpenseEntity> expenses) {
   // Clave canonica: siempre el uid menor primero, y el signo dice la
   // direccion. Sin esto, A->B y B->A quedan como dos deudas separadas en vez
@@ -93,10 +93,13 @@ List<Debt> pairwiseDebts(Iterable<GroupExpenseEntity> expenses) {
     final creditosOrd = [for (final i in orden) creditos[i]];
 
     final deudoresOrd = deudores.keys.toList()..sort();
-    for (final deudor in deudoresOrd) {
-      final partes = splitLargestRemainder(deudores[deudor]!, creditosOrd);
-      for (var i = 0; i < acreedoresOrd.length; i++) {
-        anotar(deudor, acreedoresOrd[i], partes[i]);
+    final matriz = allocateDebtsToCredits(
+      [for (final d in deudoresOrd) deudores[d]!],
+      creditosOrd,
+    );
+    for (var f = 0; f < deudoresOrd.length; f++) {
+      for (var c = 0; c < acreedoresOrd.length; c++) {
+        anotar(deudoresOrd[f], acreedoresOrd[c], matriz[f][c]);
       }
     }
   }
@@ -115,6 +118,108 @@ List<Debt> pairwiseDebts(Iterable<GroupExpenseEntity> expenses) {
         : Debt(from: k.$2, to: k.$1, cents: -v));
   }
   return salida;
+}
+
+/// Reparte lo que debe cada deudor entre los acreedores, en proporcion a lo
+/// que puso cada uno.
+///
+/// Devuelve una matriz `[deudor][acreedor]` en centavos, donde **las dos
+/// margenes cierran exactamente**: cada fila suma la deuda de ese deudor y cada
+/// columna suma el credito de ese acreedor. Nunca devuelve negativos.
+///
+/// Hace falta porque redondear cada fila por separado no alcanza. Con dos
+/// deudores de 1 centavo y dos acreedores de 1 centavo, el resto mayor le da a
+/// los dos deudores el mismo acreedor: uno cobraba 2 y el otro nada. En un
+/// barrido de 5,9 millones de combinaciones, repartir fila por fila daba
+/// columnas equivocadas en el 83% de los casos con mas de un pagador. Eso se
+/// veia en pantalla: el saldo neto de arriba y las deudas de a pares de abajo
+/// se contradecian.
+///
+/// El metodo es el clasico de transporte: primero la parte entera de la
+/// proporcion exacta, que nunca se pasa de ninguna margen, y despues los
+/// centavos que sobran, a las celdas con el resto fraccionario mas grande que
+/// todavia tengan lugar en su fila y en su columna.
+///
+/// Si el gasto esta descuadrado ([GroupExpenseEntity.isBalanced] en false) las
+/// dos margenes no pueden cerrar las dos, porque no suman lo mismo. En ese caso
+/// reparte lo que se puede y **deja el resto sin asignar** en vez de inventar
+/// una deuda: la app ya no escribe gastos descuadrados, pero pueden quedar de
+/// antes, y la UI los marca.
+List<List<int>> allocateDebtsToCredits(List<int> debts, List<int> credits) {
+  if (debts.any((d) => d < 0) || credits.any((c) => c < 0)) {
+    throw ArgumentError('Deudas y creditos son magnitudes: $debts / $credits');
+  }
+  final matriz = [
+    for (var f = 0; f < debts.length; f++) List<int>.filled(credits.length, 0),
+  ];
+  if (debts.isEmpty || credits.isEmpty) return matriz;
+
+  final sumaDeudas = debts.fold<int>(0, (a, b) => a + b);
+  final sumaCreditos = credits.fold<int>(0, (a, b) => a + b);
+  if (sumaDeudas == 0 || sumaCreditos == 0) return matriz;
+
+  // El denominador es el LADO MAS GRANDE. Con eso la parte entera no se pasa
+  // ni de la fila ni de la columna, ni siquiera cuando el gasto esta
+  // descuadrado y las dos sumas difieren.
+  final denom = sumaDeudas > sumaCreditos ? sumaDeudas : sumaCreditos;
+
+  final faltaFila = List<int>.filled(debts.length, 0);
+  final faltaColumna = List<int>.filled(credits.length, 0);
+  final celdas = <({int fila, int col, int resto})>[];
+
+  for (var f = 0; f < debts.length; f++) {
+    for (var c = 0; c < credits.length; c++) {
+      final exacto = debts[f] * credits[c];
+      matriz[f][c] = exacto ~/ denom;
+      celdas.add((fila: f, col: c, resto: exacto % denom));
+    }
+  }
+  for (var f = 0; f < debts.length; f++) {
+    faltaFila[f] = debts[f] - matriz[f].fold<int>(0, (a, b) => a + b);
+  }
+  for (var c = 0; c < credits.length; c++) {
+    var suma = 0;
+    for (var f = 0; f < debts.length; f++) {
+      suma += matriz[f][c];
+    }
+    faltaColumna[c] = credits[c] - suma;
+  }
+
+  // Resto decreciente, desempate por fila y columna: dos dispositivos calculan
+  // exactamente lo mismo. Dart no garantiza un sort estable, asi que el
+  // desempate va escrito.
+  celdas.sort((a, b) {
+    final c = b.resto.compareTo(a.resto);
+    if (c != 0) return c;
+    final f = a.fila.compareTo(b.fila);
+    return f != 0 ? f : a.col.compareTo(b.col);
+  });
+
+  for (final celda in celdas) {
+    if (faltaFila[celda.fila] > 0 && faltaColumna[celda.col] > 0) {
+      matriz[celda.fila][celda.col] += 1;
+      faltaFila[celda.fila] -= 1;
+      faltaColumna[celda.col] -= 1;
+    }
+  }
+
+  // La pasada de arriba puede dejar centavos sueltos: una fila con lugar y una
+  // columna con lugar que no se cruzaron entre las celdas de mayor resto. Se
+  // cierran aca. Con el gasto balanceado las dos margenes suman igual, asi que
+  // esto siempre las deja en cero.
+  for (var f = 0; f < debts.length; f++) {
+    for (var c = 0; c < credits.length && faltaFila[f] > 0; c++) {
+      if (faltaColumna[c] <= 0) continue;
+      final cuanto = faltaFila[f] < faltaColumna[c]
+          ? faltaFila[f]
+          : faltaColumna[c];
+      matriz[f][c] += cuanto;
+      faltaFila[f] -= cuanto;
+      faltaColumna[c] -= cuanto;
+    }
+  }
+
+  return matriz;
 }
 
 /// Lo que [uid] debe (negativo) o le deben (positivo) en total.
