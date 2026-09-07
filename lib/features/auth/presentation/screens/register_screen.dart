@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/destino_pendiente.dart';
+
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
@@ -123,7 +125,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 children: [
                   Text('¿Ya tenés cuenta?', style: Theme.of(context).textTheme.bodyMedium),
                   TextButton(
-                    onPressed: () => context.go('/auth/login'),
+                    onPressed: () => context.go(rutaConservandoDestino(
+                        '/auth/login', GoRouterState.of(context).uri)),
                     child: const Text('Entrar'),
                   ),
                 ],

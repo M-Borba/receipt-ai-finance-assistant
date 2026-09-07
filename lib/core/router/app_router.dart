@@ -17,6 +17,7 @@ import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
 import '../../features/groups/presentation/screens/join_group_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import 'destino_pendiente.dart';
 
 part 'app_router.g.dart';
 
@@ -26,35 +27,16 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     initialLocation: '/dashboard',
-    redirect: (context, state) {
-      final location = state.matchedLocation;
-      final onSplash = location == '/splash';
-      final onAuth = location.startsWith('/auth');
-
-      // Mientras Firebase resuelve la sesión, `authState.value` es null. Tratar
-      // eso como "no logueado" mandaba al login por un instante y se comía el
-      // deep link con el que se abrió la app.
-      if (authState.isLoading) {
-        if (onSplash) return null;
-        return '/splash?from=${Uri.encodeComponent(state.uri.toString())}';
-      }
-
-      final isLoggedIn = authState.value != null;
-
-      if (!isLoggedIn) return onAuth ? null : '/auth/login';
-
-      if (onAuth || onSplash) {
-        final from = state.uri.queryParameters['from'];
-        if (from != null &&
-            from.startsWith('/') &&
-            !from.startsWith('/auth') &&
-            !from.startsWith('/splash')) {
-          return from;
-        }
-        return '/dashboard';
-      }
-      return null;
-    },
+    // Toda la decisión vive en `decidirRedireccion`, que es lógica pura y
+    // tiene tests. Acá antes había una línea que se comía el `from` al mandar
+    // al login, y el link de invitación solo funcionaba para quien ya tenía la
+    // sesión abierta.
+    redirect: (context, state) => decidirRedireccion(
+      uri: state.uri,
+      rutaActual: state.matchedLocation,
+      cargandoSesion: authState.isLoading,
+      logueado: authState.value != null,
+    ),
     routes: [
       GoRoute(
         path: '/splash',

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/destino_pendiente.dart';
+
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../providers/auth_provider.dart';
@@ -160,7 +162,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       children: [
         Text("Don't have an account?", style: Theme.of(context).textTheme.bodyMedium),
         TextButton(
-          onPressed: () => context.go('/auth/register'),
+          // Se lleva el `from`: sin esto, quien llega por un link de
+          // invitación y toca "Crear cuenta" pierde la invitación.
+          onPressed: () => context.go(rutaConservandoDestino(
+              '/auth/register', GoRouterState.of(context).uri)),
           child: const Text('Creá una'),
         ),
       ],
