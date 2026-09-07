@@ -134,11 +134,16 @@ class AccountService {
       for (final doc in snap.docs) {
         // Los hijos primero: despues de borrar el padre siguen existiendo
         // igual, pero ya no hay forma de llegar a ellos.
+        // Igual que en deleteReceipt: fuera del batch y sin cortar si falla.
+        // Un ticket sin miniatura haria caer la tanda entera y dejaria la
+        // cuenta a medio borrar.
         for (final ruta in subs) {
           final partes = ruta.split('/');
-          await anotar(
-            doc.reference.collection(partes[0]).doc(partes[1]),
-          );
+          try {
+            await doc.reference.collection(partes[0]).doc(partes[1]).delete();
+          } catch (_) {
+            // No existia: no hay nada que borrar.
+          }
         }
         await anotar(doc.reference);
       }

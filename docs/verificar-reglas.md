@@ -1,77 +1,79 @@
-# Verificar las reglas antes de invitar a alguien
+# Verificar las reglas
 
-**Hacé esto antes de mandarle un link de invitación a otra persona.** Diez
-minutos. Hasta ahora, equivocarse en una regla solo exponía tus propios datos;
-con alguien más en un grupo, un error le muestra tus gastos o le esconde los
-suyos.
+**Ya no es manual.** Los 25 casos corren solos contra el motor real de Firebase:
 
-No es un reemplazo de los tests automáticos contra el emulador, que siguen
-pendientes. Es lo que se puede hacer sin sumar Java y Node a un repo Dart, y
-cubre los casos que importan.
+```bash
+gcloud auth login          # una sola vez
+python3 tool/verificar_reglas.py
+```
 
-## Dónde
+Devuelve 0 si todo pasa. Corrélo **cada vez que toques `firestore.rules`**, y
+antes de mandarle un link de invitación a alguien.
 
-Firebase Console → Firestore Database → **Reglas** → pestaña **Playground**.
+## Cómo funciona, y por qué no hace falta el emulador
 
-Necesitás dos `uid`: el tuyo (`A`) y uno inventado que no exista en ningún
-grupo (`B`, poné cualquier string). Y el id de un grupo tuyo, que sale de la
-URL cuando lo abrís: `/groups/<ese-id>`.
+Usa el endpoint `TestRuleset` de la Security Rules API, que es **el mismo motor
+que corre en producción** y el mismo que usa el Rules Playground de la consola.
+Corre del lado del servidor.
 
-## Los casos
+Eso evita el emulador, que pide Java 11+ (acá hay Java 8) y
+`@firebase/rules-unit-testing`, que existe solo para JS y metería Node en un
+repo Dart puro. El script es Python de la biblioteca estándar: cero
+dependencias nuevas.
 
-Cada fila: qué simular, y qué **tiene** que pasar. Si alguno da distinto, no
-mandes el link y avisá.
+## Una trampa que ya mordió: el verde vacío
 
-### Lo que B no debe poder hacer
+Un caso `DENY` puede pasar **por la razón equivocada**: si la ruta no matchea
+ningún bloque `match`, cae en el `allow read, write: if false` del final y
+deniega sin haber probado nada.
 
-| # | Operación | Ruta | Auth | Esperado |
-|---|---|---|---|---|
-| 1 | get | `groups/{grupoId}` | B | **Denegado** |
-| 2 | list | `groups` | B | **Denegado** |
-| 3 | get | `groups/{grupoId}/expenses/{cualquiera}` | B | **Denegado** |
-| 4 | list | `groups/{grupoId}/expenses` | B | **Denegado** |
-| 5 | update | `groups/{grupoId}` agregando a B en `memberIds` **sin** `inviteToken` | B | **Denegado** |
-| 6 | update | `groups/{grupoId}` con `inviteToken` inventado | B | **Denegado** |
-| 7 | list | `invites` | B | **Denegado** |
-| 8 | get | `receipts/{tuTicketId}` | B | **Denegado** |
-| 9 | update | `receipts/{tuTicketId}` cambiando `userId` a B | B | **Denegado** |
+Pasó de verdad al escribir esto. Los casos de `list` usaban la ruta de la
+colección (`/groups/g1/expenses`), que no matchea `match .../expenses/{id}`
+porque le falta un segmento. Cuatro casos daban verde sin ejercitar una sola
+línea de la regla que querían probar.
 
-El 5 y el 6 son los que habilita esta versión, y los más importantes.
+Por eso el script mira **qué expresiones visitó** cada caso y marca `VACIO` si
+todas caen en la línea del deny-by-default.
 
-### Lo que A sí debe poder hacer
+## Qué cubre
 
-| # | Operación | Ruta | Auth | Esperado |
-|---|---|---|---|---|
-| 10 | list | `groups` con filtro `memberIds arrayContains A` | A | **Permitido** |
-| 11 | list | `groups/{grupoId}/expenses` **sin ningún filtro** | A | **Permitido** |
-| 12 | create | `invites/{token}` con `groupId` del grupo y `expiresAt` futuro | A | **Permitido** |
-| 13 | create | `invites/{token}` con `expiresAt` en el pasado | A | **Denegado** |
+- **14 casos de lo que alguien de afuera NO puede hacer**: leer un grupo ajeno,
+  listar grupos, leer o listar gastos ajenos, agregarse sin token, con un token
+  inventado, vencido o de otro grupo, meter a un tercero de paso, cambiarle el
+  nombre al grupo al entrar, leer tickets ajenos, robar uno cambiando el
+  `userId`, enumerar invitaciones, y entrar sin login.
+- **11 casos de lo que sí tiene que funcionar**: leer el propio grupo, listar
+  gastos **sin filtro** (el cambio de este release), crear gastos e
+  invitaciones, entrar con un token válido, y borrar la propia miniatura.
 
-El 11 confirma el cambio de este release: la lectura de gastos ya no necesita
-filtro porque autoriza mirando el grupo padre.
+## Límite conocido, verificado
 
-### El caso que hay que probar de verdad
+**Borrar una miniatura que no existe se deniega**, y no se puede arreglar en las
+reglas: tocar `resource` cuando es null aborta la evaluación, y una evaluación
+abortada deniega. Se probaron `resource == null`, `!(resource != null)` y
+`resource.data == null`: las tres abortan.
 
-El Playground no encadena operaciones, así que el flujo completo de entrar a un
-grupo se prueba en la app:
+Por eso el borrado de la miniatura no va en el batch atómico del ticket. Si
+fuera parte del batch, un ticket cuya miniatura nunca se pudo generar quedaría
+imposible de borrar para siempre.
 
-1. Con tu cuenta, creá un grupo y un link.
-2. Abrí el link en una **ventana de incógnito** y entrá con **otra cuenta**.
-3. Tiene que ver el nombre del grupo, poder entrar, y **ver los gastos que ya
-   estaban cargados** (no solo los nuevos).
-4. Volvé a tu ventana: la otra persona tiene que aparecer en el grupo.
-5. Cargá un gasto dividido entre los dos y confirmá que los saldos dan lo
-   mismo en las dos cuentas.
-
-El punto 3 es el que más vale: es exactamente lo que se rompía con el diseño
-anterior, donde el gasto llevaba una copia de `memberIds` que quedaba vieja al
-sumarse alguien.
-
-## Lo que sigue sin estar cubierto
+## Lo que sigue sin cubrirse
 
 - Que un miembro escriba un reparto que no cierra. Las reglas **no pueden**
   validarlo: el lenguaje no suma los valores de un mapa. Lo valida el cliente y
   la UI marca los gastos descuadrados.
-- Sacar a alguien de un grupo. No existe todavía.
+- Sacar a alguien de un grupo: no existe todavía.
 - Un link robado. El token **es** la credencial: quien lo tiene, entra. Por eso
   vence a los 7 días.
+
+## La prueba de punta a punta
+
+El script verifica reglas, no el flujo. Una vez, antes de invitar a alguien:
+
+1. Creá un grupo y un link.
+2. Abrí el link en **incógnito** con **otra cuenta**.
+3. Tiene que ver el nombre, poder entrar, y **ver los gastos que ya estaban
+   cargados** (no solo los nuevos). Es lo que se rompía con el diseño anterior,
+   donde el gasto llevaba una copia de `memberIds` que quedaba vieja.
+4. Cargá un gasto entre los dos y confirmá que los saldos dan igual en las dos
+   cuentas.

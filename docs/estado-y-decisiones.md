@@ -36,26 +36,26 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **La memoria del usuario gana sobre todo** | El orden es: lo que vos elegiste antes para ese comercio, después las reglas locales, después la IA. Nadie sabe mejor que vos en qué gastás, y los comercios chicos (que son la mayoría) nunca van a estar en una lista de cadenas. Se guarda en **un solo documento** en `users/{uid}/preferences/merchants`: se lee entero en cada escaneo, así cuesta una lectura y no una por comercio. En Firestore y no en el navegador, porque la app se usa en el celular y en la computadora. |
 | **Clasificación local primero, IA después** | El clasificador de comercios corre en el dispositivo: gratis, instantáneo, offline. La IA quedó como plan B. Antes era al revés, y como la IA apunta a `localhost` no funcionaba nunca en producción. |
 | **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
-| **Sin tests de reglas de Firestore** | Requieren el emulador (JAR, Java 11+) y `@firebase/rules-unit-testing` (solo JS), o sea Node en un repo Dart puro. Se pospuso a conciencia. **Ver el gatillo más abajo.** |
+| **Tests de reglas SIN emulador** | Se descartó el emulador (pide Java 11+, acá hay Java 8) y `@firebase/rules-unit-testing` (solo JS, metería Node en un repo Dart). En su lugar, `tool/verificar_reglas.py` usa el endpoint `TestRuleset` de la Security Rules API: **el mismo motor que corre en producción**, del lado del servidor, con Python de la biblioteca estándar y cero dependencias nuevas. 25 casos. |
 | **Config en `assets/config/app.env`, versionada** | Va dentro del binario igual, así que no puede tener secretos. `.env` quedó gitignoreado y sin uso. Antes `.env` era asset obligatorio Y estaba gitignoreado: ningún clone limpio compilaba. |
 | **Los gastos de grupo NO llevan copia de `memberIds`** | El diseño original la desnormalizaba para no pagar un `get()` por evaluación. Se revirtió por dos motivos. Primero: la copia queda vieja cuando alguien se suma, así que quien entra no vería ningún gasto anterior, y no puede arreglarlo (para actualizarlos necesitaría listarlos, que es lo que la regla le niega). Segundo: la condición `esDelGrupo(groupId)` no menciona `resource`, así que Firestore la evalúa **una vez por consulta** y no una por documento. El ahorro que justificaba la copia no existía. Efecto secundario: la query ya no necesita filtro, que era la causa del `permission-denied` que se chocó en producción. |
 | **Los items se acotan al bloque del detalle** | Un e-Ticket de DGI tiene encabezado, detalle y pie. Sin acotar, el número de RUT entraba como un producto de $219.640.160,11 y las filas de la tabla de IVA entraban con el monto del total. Además: **ningún ítem puede costar más que el ticket entero**, que es la regla que limpia la basura sin depender de cómo el OCR cortó las columnas. |
 | **Google Sign-In por `signInWithPopup` en web** | `GoogleSignIn().signIn()` está deprecado en web justamente porque no devuelve un `idToken` confiable. Además había un meta tag `google-signin-client_id` en `index.html` con un client ID sin origen autorizado, que producía `origin_mismatch`. Se removió. |
 
-### Gatillo bloqueante: ahora tiene una salida
+### El gatillo bloqueante quedó levantado
 
-**Antes de mandarle un link de invitación a otra persona, correr
-[docs/verificar-reglas.md](verificar-reglas.md).** Son diez minutos en el Rules
-Playground de la consola, más una prueba de punta a punta en incógnito con dos
-cuentas.
+Las reglas ya tienen verificación automática: `python3 tool/verificar_reglas.py`,
+25 casos contra el motor real de Firebase. Correrlo cada vez que se toque
+`firestore.rules`. Detalle en [verificar-reglas.md](verificar-reglas.md).
 
-No reemplaza los tests automáticos contra el emulador, que siguen pendientes,
-pero cubre los casos que importan sin sumar Java y Node a un repo Dart.
+Por qué importaba, con evidencia: **cuatro errores de reglas en dos semanas**,
+uno descubierto recién al chocarlo en producción (commit `2b58a23`) y otro
+recién cuando el script pudo ejecutar las reglas de verdad (el borrado de una
+miniatura inexistente, que yo había "arreglado" con una condición que no
+funciona).
 
-Por qué importa, con evidencia: **tres errores de reglas en dos semanas**, uno
-descubierto recién al chocarlo en producción (commit `2b58a23`). Con un solo
-usuario, equivocarse te muestra un error. Con alguien más en el grupo,
-equivocarse le muestra tus gastos.
+Sigue faltando la prueba de punta a punta con dos cuentas, que el script no
+puede hacer: está descrita en el mismo documento.
 
 ---
 
@@ -116,9 +116,8 @@ Importante para no confiar de más en el estado "todo verde":
 - **La UI renderizada.** Nadie cliqueó las pantallas desde el lado del
   desarrollo asistido. Desbordes, contraste y teclado tapando campos son
   invisibles ahí.
-- **Las reglas de Firestore.** Verificadas leyéndolas, no ejecutándolas. Con
-  grupos esto pesa más que antes: son las primeras reglas de la app que
-  autorizan por pertenencia y no por dueño.
+- **El flujo de invitación de punta a punta.** Las reglas sí se ejecutan ahora
+  (25 casos), pero nadie abrió un link con una segunda cuenta real.
 - **El OCR con el motor que corre en producción.** Ya hay tres tickets
   uruguayos reales en `test/assets/ocr/`, pero el texto lo produjo Apple Vision,
   no ML Kit (móvil) ni Tesseract (web). Lo que se verificó es el **parser**

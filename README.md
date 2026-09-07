@@ -14,7 +14,7 @@ que sea un archivador de fotos de recibos.
 |---|---|
 | **[docs/estado-y-decisiones.md](docs/estado-y-decisiones.md)** | **Empezá acá.** Las decisiones tomadas **y sus motivos**, qué está construido, qué falta, **qué NO está verificado**, y las trampas conocidas que ya mordieron. |
 | [docs/grupos-y-division.md](docs/grupos-y-division.md) | Grupos estilo Splitwise: modelo de datos, algoritmos de reparto y liquidación, reglas, fases. La fase 1 está hecha. |
-| **[docs/verificar-reglas.md](docs/verificar-reglas.md)** | **Correr antes de invitar a alguien a un grupo.** Diez minutos en el Rules Playground: los casos exactos que hay que probar. |
+| **[docs/verificar-reglas.md](docs/verificar-reglas.md)** | **Correr `python3 tool/verificar_reglas.py` cada vez que toques las reglas.** 25 casos contra el motor real de Firebase, sin emulador. |
 | **[docs/auditoria-informe.md](docs/auditoria-informe.md)** | Auditoría **verificada**: 26 hallazgos confirmados, ordenados por impacto, con el arreglo de cada uno. Los cuatro peores ya están arreglados. **Es la lista de trabajo pendiente.** |
 | [docs/hallazgos-auditoria.md](docs/hallazgos-auditoria.md) | Los hallazgos crudos de la primera pasada, sin verificar. Ya superado por el informe de arriba. |
 | [SETUP.md](SETUP.md) | Puesta a punto de Firebase, Ollama y el entorno. Algunas partes están desactualizadas: manda el doc de decisiones. |
@@ -76,9 +76,9 @@ dentro de Firestore, en `receipts/{id}/media/thumb`, y es deliberado: para
 grupos, compartir la foto es la misma regla de membresía que el ticket ya
 necesita.
 
-**3. `firestore.rules` es la única capa de autorización, y no tiene tests.**
-Cualquier cambio ahí se despliega sin red de seguridad. Ver el gatillo
-bloqueante en el doc de decisiones.
+**3. `firestore.rules` es la única capa de autorización.** Después de tocarla,
+correr `python3 tool/verificar_reglas.py`: 25 casos contra el mismo motor que
+corre en producción. Un cambio ahí no tiene otra red de seguridad.
 
 **4. Solo se usa la web.** El usuario abre la PWA en celular y computadora. Los
 caminos nativos (ML Kit, `dart:io`, `path_provider`) existen pero no se usan en
@@ -104,6 +104,7 @@ que esté bien (`groups/domain/split.dart`, `groups/domain/balance.dart`,
 ```bash
 flutter test
 flutter analyze lib test --no-fatal-infos
+python3 tool/verificar_reglas.py    # las reglas de Firestore
 ```
 
 206 tests. El grueso cubre dos cosas:

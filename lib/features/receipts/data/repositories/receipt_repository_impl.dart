@@ -312,9 +312,26 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       for (final expense in linkedExpenses.docs) {
         batch.delete(expense.reference);
       }
-      batch.delete(_thumbDoc(id));
       batch.delete(_receiptsCol.doc(id));
       await batch.commit();
+
+      // La miniatura se borra APARTE y sin cortar el flujo si falla.
+      //
+      // Adentro del batch, un ticket cuya miniatura nunca se pudo generar (un
+      // HEIC del carrete que `package:image` no decodifica) quedaba imposible
+      // de borrar PARA SIEMPRE: las reglas deniegan borrar un documento
+      // inexistente, el batch es atomico, y se caia el borrado entero. El
+      // gasto asociado seguia sumando en el dashboard y contra el presupuesto,
+      // sin ninguna salida desde la app.
+      //
+      // No se puede arreglar en las reglas: tocar `resource` cuando es null
+      // aborta la evaluacion. Verificado en `tool/verificar_reglas.py`.
+      try {
+        await _thumbDoc(id).delete();
+      } catch (e) {
+        _log.w('El ticket se borro; su miniatura no existia o no se pudo '
+            'borrar', error: e);
+      }
 
       return const Right(null);
     } catch (e) {
