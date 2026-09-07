@@ -181,7 +181,7 @@ class _DialogoInvitacion extends StatelessWidget {
   }
 }
 
-class _Resumen extends StatelessWidget {
+class _Resumen extends ConsumerWidget {
   const _Resumen({required this.grupo, required this.gastos, required this.uid});
 
   final GroupEntity grupo;
@@ -189,9 +189,18 @@ class _Resumen extends StatelessWidget {
   final String uid;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final saldo = balanceOf(gastos, uid);
-    final mias = debtsInvolving(gastos, uid);
+    final simplificada = ref.watch(vistaSimplificadaProvider);
+    // El saldo de arriba sale de netBalances y las deudas de abajo de otra
+    // funcion. Que las dos cierren es un invariante con test: si se rompe, la
+    // pantalla se contradice sola.
+    final mias = simplificada
+        ? simplifiedDebtsInvolving(gastos, uid)
+        : debtsInvolving(gastos, uid);
+    // Con dos personas hay una sola deuda posible, asi que simplificar no
+    // cambia nada y el switch seria ruido.
+    final vale = grupo.memberIds.length > 2;
 
     return Card(
       child: Padding(
@@ -215,6 +224,14 @@ class _Resumen extends StatelessWidget {
                         : AppColors.error,
               ),
             ),
+            if (vale && (mias.isNotEmpty || simplificada)) ...[
+              const SizedBox(height: 8),
+              _SwitchSimplificar(
+                activo: simplificada,
+                onCambio: () =>
+                    ref.read(vistaSimplificadaProvider.notifier).alternar(),
+              ),
+            ],
             if (mias.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Divider(height: 1),
@@ -244,7 +261,57 @@ class _Resumen extends StatelessWidget {
                     ],
                   ),
                 ),
+              if (simplificada) ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Menos transferencias, mismas cuentas. Puede pedirte que le '
+                  'pagues a alguien con quien no gastaste nada.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// El switch entre la vista de a pares y la simplificada.
+class _SwitchSimplificar extends StatelessWidget {
+  const _SwitchSimplificar({required this.activo, required this.onCambio});
+
+  final bool activo;
+  final VoidCallback onCambio;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onCambio,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Icon(
+              activo ? Icons.call_merge : Icons.compare_arrows,
+              size: 16,
+              color: activo ? AppColors.primary : AppColors.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              activo ? 'Simplificado' : 'De a pares',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: activo ? AppColors.primary : AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              activo ? '(tocá para ver de a pares)' : '(tocá para simplificar)',
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
           ],
         ),
       ),

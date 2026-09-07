@@ -120,6 +120,78 @@ List<Debt> pairwiseDebts(Iterable<GroupExpenseEntity> expenses) {
   return salida;
 }
 
+/// Deudas **simplificadas**: las mismas cuentas con la menor cantidad de
+/// transferencias posible.
+///
+/// Se deriva de [netBalances] y no del quien-gasto-con-quien, asi que puede
+/// decirte "pagale a Ana" cuando nunca gastaste nada con Ana. Por eso NO es la
+/// vista por defecto: a la gente le resulta rarisimo, y Splitwise tambien la
+/// tiene apagada de fabrica. Sirve cuando el grupo se quiere cerrar de una:
+/// entre 4 personas, 6 pagos de a pares suelen cerrarse con 3.
+///
+/// Es voraz: el que mas debe le paga al que mas le deben, y se repite. Cada
+/// paso cierra al menos una persona, asi que salen **como maximo n-1 pagos**,
+/// que es el peor caso optimo. No es el minimo absoluto (ese problema es
+/// NP-completo), pero la diferencia solo aparece cuando hay subconjuntos que
+/// suman cero entre si, y a cambio esto es predecible y se explica en una
+/// frase.
+///
+/// El desempate es por uid, asi que dos dispositivos muestran lo mismo. Sin eso
+/// la lista bailaria entre celular y compu con los mismos gastos.
+List<Debt> simplifiedDebts(Iterable<GroupExpenseEntity> expenses) {
+  final neto = netBalances(expenses);
+
+  final deudores = <({String uid, int cents})>[];
+  final acreedores = <({String uid, int cents})>[];
+  for (final e in neto.entries) {
+    if (e.value < 0) deudores.add((uid: e.key, cents: -e.value));
+    if (e.value > 0) acreedores.add((uid: e.key, cents: e.value));
+  }
+
+  int porMontoYUid(({String uid, int cents}) a, ({String uid, int cents}) b) {
+    final c = b.cents.compareTo(a.cents);
+    return c != 0 ? c : a.uid.compareTo(b.uid);
+  }
+
+  deudores.sort(porMontoYUid);
+  acreedores.sort(porMontoYUid);
+
+  final salida = <Debt>[];
+  var d = 0;
+  var a = 0;
+  var debe = deudores.isEmpty ? 0 : deudores.first.cents;
+  var cobra = acreedores.isEmpty ? 0 : acreedores.first.cents;
+
+  while (d < deudores.length && a < acreedores.length) {
+    final monto = debe < cobra ? debe : cobra;
+    if (monto > 0) {
+      salida.add(Debt(
+          from: deudores[d].uid, to: acreedores[a].uid, cents: monto));
+    }
+    debe -= monto;
+    cobra -= monto;
+    // El que llego a cero avanza. Si los dos llegaron, avanzan los dos: no
+    // hace falta emitir un pago de cero.
+    if (debe == 0) {
+      d++;
+      if (d < deudores.length) debe = deudores[d].cents;
+    }
+    if (cobra == 0) {
+      a++;
+      if (a < acreedores.length) cobra = acreedores[a].cents;
+    }
+  }
+
+  return salida;
+}
+
+/// Las deudas simplificadas que involucran a [uid].
+List<Debt> simplifiedDebtsInvolving(
+        Iterable<GroupExpenseEntity> expenses, String uid) =>
+    simplifiedDebts(expenses)
+        .where((d) => d.from == uid || d.to == uid)
+        .toList();
+
 /// Reparte lo que debe cada deudor entre los acreedores, en proporcion a lo
 /// que puso cada uno.
 ///

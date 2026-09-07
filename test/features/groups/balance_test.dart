@@ -228,6 +228,168 @@ void main() {
     });
   });
 
+  group('simplifiedDebts', () {
+    /// Lo que cada persona paga (negativo) o cobra (positivo) segun una lista
+    /// de deudas. Es la unica forma honesta de chequear que la vista no invento
+    /// ni perdio plata.
+    Map<String, int> netoDe(List<Debt> deudas) {
+      final m = <String, int>{};
+      for (final d in deudas) {
+        m[d.from] = (m[d.from] ?? 0) - d.cents;
+        m[d.to] = (m[d.to] ?? 0) + d.cents;
+      }
+      m.removeWhere((_, v) => v == 0);
+      return m;
+    }
+
+    test('la cadena se corta: si yo le debo a Ana y Ana a Zoe, le pago a Zoe', () {
+      final libro = [
+        gasto(
+            total: 1000,
+            pago: {'ana': 1000},
+            reparto: {'yo': 1000},
+            id: 'a'),
+        gasto(
+            total: 1000,
+            pago: {'zoe': 1000},
+            reparto: {'ana': 1000},
+            id: 'b'),
+      ];
+      // De a pares son dos pagos. Simplificado es uno solo.
+      expect(pairwiseDebts(libro).length, 2);
+      expect(simplifiedDebts(libro),
+          [const Debt(from: 'yo', to: 'zoe', cents: 1000)]);
+    });
+
+    test('no cambia el neto de nadie', () {
+      final libro = [
+        gasto(
+            total: 9000,
+            pago: {'ana': 9000},
+            reparto: {'ana': 2250, 'zoe': 2250, 'juan': 2250, 'yo': 2250},
+            id: 'a'),
+        gasto(
+            total: 4000,
+            pago: {'zoe': 4000},
+            reparto: {'ana': 1000, 'zoe': 1000, 'juan': 1000, 'yo': 1000},
+            id: 'b'),
+        gasto(
+            total: 700,
+            pago: {'juan': 700},
+            reparto: {'yo': 700},
+            id: 'c'),
+      ];
+      expect(netoDe(simplifiedDebts(libro)), netBalances(libro));
+      expect(netoDe(pairwiseDebts(libro)), netBalances(libro));
+    });
+
+    test('una cadena de cuatro personas se cierra con un solo pago', () {
+      // Cada uno le pago algo al siguiente. De a pares son tres deudas y nadie
+      // sabe por donde empezar; simplificado, uno le paga al otro y listo.
+      final libro = [
+        gasto(total: 1000, pago: {'ana': 1000}, reparto: {'yo': 1000}, id: 'a'),
+        gasto(total: 1000, pago: {'zoe': 1000}, reparto: {'ana': 1000}, id: 'b'),
+        gasto(total: 1000, pago: {'juan': 1000}, reparto: {'zoe': 1000}, id: 'c'),
+      ];
+      expect(pairwiseDebts(libro).length, 3);
+      expect(simplifiedDebts(libro),
+          [const Debt(from: 'yo', to: 'juan', cents: 1000)]);
+    });
+
+    test('nunca hace mas de n-1 pagos', () {
+      final libro = [
+        for (var i = 0; i < 4; i++)
+          gasto(
+            total: 4000,
+            pago: {['ana', 'beto', 'juan', 'zoe'][i]: 4000},
+            reparto: const {'ana': 1000, 'beto': 1000, 'juan': 1000, 'zoe': 1000},
+            id: 'g$i',
+          ),
+        gasto(
+          total: 300,
+          pago: {'ana': 100, 'beto': 100, 'juan': 100},
+          reparto: {'zoe': 300},
+          id: 'z',
+        ),
+      ];
+      final personas = netBalances(libro).length;
+      expect(simplifiedDebts(libro).length, lessThanOrEqualTo(personas - 1));
+    });
+
+    test('cuando todo esta saldado no hay ningun pago', () {
+      final libro = [
+        gasto(
+          total: 1000,
+          pago: {'ana': 500, 'yo': 500},
+          reparto: {'ana': 500, 'yo': 500},
+        ),
+      ];
+      expect(simplifiedDebts(libro), isEmpty);
+      expect(simplifiedDebts(const []), isEmpty);
+    });
+
+    test('el orden no depende del orden de los gastos ni del Map', () {
+      final libro = [
+        gasto(
+            total: 6000,
+            pago: {'zoe': 6000},
+            reparto: {'zoe': 2000, 'ana': 2000, 'juan': 2000},
+            id: 'a'),
+        gasto(
+            total: 900,
+            pago: {'ana': 900},
+            reparto: {'juan': 900},
+            id: 'b'),
+      ];
+      expect(simplifiedDebts(libro), simplifiedDebts(libro.reversed));
+    });
+
+    test('el neto cierra en un barrido de libros al azar', () {
+      final rnd = Random(20260906);
+      final nombres = ['ana', 'beto', 'caro', 'dani', 'eze', 'flor'];
+      for (var caso = 0; caso < 800; caso++) {
+        final cuantos = 2 + rnd.nextInt(5);
+        final gente = nombres.take(cuantos).toList();
+        final libro = <GroupExpenseEntity>[];
+        for (var g = 0; g < 1 + rnd.nextInt(6); g++) {
+          final total = 1 + rnd.nextInt(200000);
+          // Uno o dos pagadores, y un reparto que cierra.
+          final pagadores = gente.take(1 + rnd.nextInt(2)).toList();
+          final pago = <String, int>{};
+          final partesPago = splitLargestRemainder(
+              total, List<int>.filled(pagadores.length, 1));
+          for (var i = 0; i < pagadores.length; i++) {
+            pago[pagadores[i]] = partesPago[i];
+          }
+          final participan = gente
+              .where((_) => rnd.nextBool())
+              .toList();
+          if (participan.isEmpty) participan.add(gente[rnd.nextInt(cuantos)]);
+          final reparto = computeShares(
+            totalCents: total,
+            participants: participan,
+            mode: SplitMode.equal,
+          );
+          libro.add(gasto(total: total, pago: pago, reparto: reparto, id: 'g$g'));
+        }
+
+        final neto = netBalances(libro);
+        final simple = simplifiedDebts(libro);
+        expect(netoDe(simple), neto, reason: 'neto caso $caso');
+        expect(netoDe(pairwiseDebts(libro)), neto,
+            reason: 'neto de a pares caso $caso');
+        for (final d in simple) {
+          expect(d.cents, greaterThan(0), reason: 'monto caso $caso');
+          expect(d.from, isNot(d.to), reason: 'auto pago caso $caso');
+        }
+        if (neto.isNotEmpty) {
+          expect(simple.length, lessThanOrEqualTo(neto.length - 1),
+              reason: 'cantidad de pagos caso $caso');
+        }
+      }
+    });
+  });
+
   group('allocateDebtsToCredits', () {
     List<int> sumasFila(List<List<int>> m) =>
         [for (final f in m) f.fold<int>(0, (a, b) => a + b)];
