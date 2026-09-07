@@ -16,8 +16,21 @@ severidad alta abriendo los archivos y, en un caso, ejecutando el código.
 - **D3** — el escaneo en el celular fallaba siempre: 20 segundos de timeout que
   incluían la descarga del motor wasm y de dos idiomas desde un CDN. Ahora dos
   minutos, un solo idioma, y un mensaje que se entiende.
+- **D4** — el total del mes quedaba congelado al cruzar el cambio de mes. Cada
+  provider y cada pantalla llamaba a `DateTime.now()` por su cuenta, y los
+  providers de totales solo se recalculan cuando Firestore emite. Ahora hay una
+  única fuente de verdad, `MesActual`, con timer al primer instante del mes
+  siguiente y refresco al volver del segundo plano (el timer no corre con la app
+  suspendida, y el navegador congela las pestañas en segundo plano).
 - **D5** — el total podía salir de la línea siguiente al keyword, porque `\s*`
   incluye el salto de línea. Probado: $22,00 en un ticket de $1.056,00.
+- **D6** — guardar sin conexión dejaba la pantalla colgada para siempre.
+  `batch.commit()` y `add()` resuelven recién cuando el servidor confirma, así
+  que sin red el Future quedaba pendiente sin éxito ni error. Ahora las diez
+  escrituras tienen `.timeout(escrituraTimeout)` (20 s) y devuelven un
+  `NetworkFailure` que **no dice "no se guardó"**, porque no se sabe: Firestore
+  encola la escritura y la manda cuando vuelve la red. Se cubrieron también las
+  seis escrituras de grupos, que no estaban en el hallazgo.
 
 Lo que sigue abajo es el informe tal como lo produjo la auditoría, con el resto
 de los hallazgos pendientes.

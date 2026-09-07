@@ -11,6 +11,7 @@ import '../../features/receipts/presentation/screens/receipt_detail_screen.dart'
 import '../../features/receipts/presentation/screens/receipt_list_screen.dart';
 import '../../features/receipts/presentation/screens/scan_receipt_screen.dart';
 import '../../features/insights/presentation/screens/insights_screen.dart';
+import '../../features/expenses/presentation/providers/mes_actual_provider.dart';
 import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/groups/presentation/screens/group_detail_screen.dart';
 import '../../features/groups/presentation/screens/groups_screen.dart';
@@ -153,9 +154,34 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
+
+  @override
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  AppLifecycleListener? _ciclo;
+
+  @override
+  void initState() {
+    super.initState();
+    // Al volver del segundo plano hay que volver a mirar el reloj: el timer de
+    // MesActual no corre con la app suspendida, y el navegador congela las
+    // pestañas en segundo plano. Sin esto, abrir la app el 1 del mes despues
+    // de tenerla abierta desde el 31 seguiria mostrando el mes viejo.
+    _ciclo = AppLifecycleListener(
+      onResume: () => ref.read(mesActualProvider.notifier).refrescar(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ciclo?.dispose();
+    super.dispose();
+  }
 
   static const _routes = [
     '/dashboard',
@@ -179,7 +205,7 @@ class MainShell extends StatelessWidget {
     final selectedIndex = _indexFor(location);
 
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {

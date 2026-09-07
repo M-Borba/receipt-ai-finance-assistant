@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'mes_actual_provider.dart';
+
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../insights/domain/entities/monthly_spending_summary.dart';
 import '../../data/repositories/expense_repository_impl.dart';
@@ -86,14 +88,16 @@ class ExpenseActions extends _$ExpenseActions {
 @riverpod
 MonthlySpendingSummary currentMonthSummary(Ref ref) {
   final expenses = ref.watch(expensesStreamProvider).value ?? const [];
-  return MonthlySpendingSummary.from(expenses, DateTime.now());
+  // El mes sale del provider, no de DateTime.now(): ver MesActual.
+  return MonthlySpendingSummary.from(expenses, ref.watch(mesActualProvider));
 }
 
 @riverpod
 MonthlySpendingSummary previousMonthSummary(Ref ref) {
   final expenses = ref.watch(expensesStreamProvider).value ?? const [];
-  final now = DateTime.now();
-  return MonthlySpendingSummary.from(expenses, DateTime(now.year, now.month - 1));
+  final mes = ref.watch(mesActualProvider);
+  return MonthlySpendingSummary.from(
+      expenses, DateTime(mes.year, mes.month - 1));
 }
 
 @riverpod

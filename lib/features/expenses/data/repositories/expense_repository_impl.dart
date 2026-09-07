@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/write_timeout.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/repositories/expense_repository.dart';
 import '../models/expense_model.dart';
@@ -83,7 +85,9 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
         createdAt: DateTime.now(),
       );
 
-      final ref = await _col.add(expense.toFirestore());
+      // Con timeout: sin red, add() no resuelve nunca.
+      final ref =
+          await _col.add(expense.toFirestore()).timeout(escrituraTimeout);
       final saved = ExpenseModel(
         id: ref.id,
         userId: expense.userId,
@@ -95,6 +99,8 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
         createdAt: expense.createdAt,
       );
       return Right(saved);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el gasto'));
     } catch (e) {
       _log.e('Failed to add manual expense', error: e);
       return Left(NetworkFailure('No se pudo guardar el gasto: $e'));

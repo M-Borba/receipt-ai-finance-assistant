@@ -40,6 +40,8 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **Config en `assets/config/app.env`, versionada** | Va dentro del binario igual, así que no puede tener secretos. `.env` quedó gitignoreado y sin uso. Antes `.env` era asset obligatorio Y estaba gitignoreado: ningún clone limpio compilaba. |
 | **Los gastos de grupo NO llevan copia de `memberIds`** | El diseño original la desnormalizaba para no pagar un `get()` por evaluación. Se revirtió por dos motivos. Primero: la copia queda vieja cuando alguien se suma, así que quien entra no vería ningún gasto anterior, y no puede arreglarlo (para actualizarlos necesitaría listarlos, que es lo que la regla le niega). Segundo: la condición `esDelGrupo(groupId)` no menciona `resource`, así que Firestore la evalúa **una vez por consulta** y no una por documento. El ahorro que justificaba la copia no existía. Efecto secundario: la query ya no necesita filtro, que era la causa del `permission-denied` que se chocó en producción. |
 | **Los items se acotan al bloque del detalle** | Un e-Ticket de DGI tiene encabezado, detalle y pie. Sin acotar, el número de RUT entraba como un producto de $219.640.160,11 y las filas de la tabla de IVA entraban con el monto del total. Además: **ningún ítem puede costar más que el ticket entero**, que es la regla que limpia la basura sin depender de cómo el OCR cortó las columnas. |
+| **Un solo `MesActual` decide qué mes se muestra** | Antes cada provider y cada pantalla llamaba a `DateTime.now()` por su cuenta. Los providers de totales solo se recalculan cuando Firestore emite, y `snapshots()` no emite si no cambió nada; el encabezado, en cambio, se recalcula en cada build. El 1 del mes veías el total del mes pasado bajo el título nuevo. Ahora hay un `Notifier` con timer al primer instante del mes siguiente, y un `AppLifecycleListener` que vuelve a mirar el reloj al volver del segundo plano: el timer **no corre con la app suspendida**, y el navegador congela las pestañas en segundo plano. |
+| **Toda escritura a Firestore tiene timeout de 20 s** | `batch.commit()`, `add()`, `set()`, `update()` y `delete()` resuelven recién cuando el servidor confirma. Sin red el Future queda pendiente para siempre: la pantalla quedaba con el spinner puesto, sin éxito, sin error y sin salida. El mensaje del timeout **no dice "no se guardó"**, porque no se sabe: Firestore encola la escritura y la manda cuando vuelve la red, así que afirmar que falló es peor que decir la verdad. |
 | **Google Sign-In por `signInWithPopup` en web** | `GoogleSignIn().signIn()` está deprecado en web justamente porque no devuelve un `idToken` confiable. Además había un meta tag `google-signin-client_id` en `index.html` con un client ID sin origen autorizado, que producía `origin_mismatch`. Se removió. |
 
 ### El gatillo bloqueante quedó levantado
@@ -81,11 +83,15 @@ puede hacer: está descrita en el mismo documento.
 - CI/CD en GitHub Actions, PWA instalable
 - **Tests contra tres tickets uruguayos reales** pasados por un OCR real, no
   texto inventado: ver `test/assets/ocr/README.md`
-- **Grupos fase 1**: crear grupo, cargar gasto, dividir en partes iguales o por partes, balances de a pares. Sin invitaciones todavía
+- **Grupos fase 1 completa**: crear grupo, invitar por link (token de 7 días,
+  validado por las reglas del servidor), cargar gasto, dividir en partes
+  iguales o por partes, balances de a pares
+- **Las reglas de Firestore se verifican solas**: `python3 tool/verificar_reglas.py`,
+  25 casos contra el mismo motor que producción. Ver `docs/verificar-reglas.md`
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **219 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **223 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 

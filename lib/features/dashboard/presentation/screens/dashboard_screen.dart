@@ -8,6 +8,7 @@ import '../../../../core/format/money.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../../features/expenses/domain/entities/expense_entity.dart';
 import '../../../../features/expenses/presentation/providers/expense_provider.dart';
+import '../../../../features/expenses/presentation/providers/mes_actual_provider.dart';
 import '../../../../features/expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../../../features/budgets/domain/entities/budget_status.dart';
 import '../../../../features/budgets/presentation/providers/budget_provider.dart';
@@ -208,13 +209,15 @@ class _BudgetAlerts extends ConsumerWidget {
   }
 }
 
-class _SpendingCard extends StatelessWidget {
+class _SpendingCard extends ConsumerWidget {
   final int totalSpending;
   const _SpendingCard({required this.totalSpending});
 
   @override
-  Widget build(BuildContext context) {
-    final month = AppDate.monthYear(DateTime.now());
+  Widget build(BuildContext context, WidgetRef ref) {
+    // El mes sale del mismo provider que el total, asi que el titulo y el
+    // numero no pueden discrepar. Ver MesActual.
+    final month = AppDate.monthYear(ref.watch(mesActualProvider));
 
     return Container(
       padding: const EdgeInsets.all(24),

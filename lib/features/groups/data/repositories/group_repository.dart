@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dartz/dartz.dart';
@@ -8,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/write_timeout.dart';
 import '../../domain/entities/group_entity.dart';
 import '../../domain/entities/group_expense_entity.dart';
 import '../../domain/split.dart';
@@ -100,8 +103,10 @@ class GroupRepository {
         members: {u.uid: yo},
         createdAt: DateTime.now(),
       );
-      await _groups.doc(id).set(grupo.toFirestore());
+      await _groups.doc(id).set(grupo.toFirestore()).timeout(escrituraTimeout);
       return Right(grupo);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el grupo'));
     } catch (e, st) {
       _log.e('createGroup fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));
@@ -173,8 +178,13 @@ class GroupRepository {
         return const Left(ValidationFailure('El reparto no cierra'));
       }
 
-      await _expenses(group.id).doc(id).set(gasto.toFirestore());
+      await _expenses(group.id)
+          .doc(id)
+          .set(gasto.toFirestore())
+          .timeout(escrituraTimeout);
       return Right(gasto);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el gasto'));
     } catch (e, st) {
       _log.e('addExpense fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));
@@ -184,8 +194,13 @@ class GroupRepository {
   Future<Either<Failure, Unit>> deleteExpense(
       String groupId, String expenseId) async {
     try {
-      await _expenses(groupId).doc(expenseId).delete();
+      await _expenses(groupId)
+          .doc(expenseId)
+          .delete()
+          .timeout(escrituraTimeout);
       return const Right(unit);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el borrado'));
     } catch (e, st) {
       _log.e('deleteExpense fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));
@@ -222,8 +237,12 @@ class GroupRepository {
         'createdBy': _user.uid,
         'createdAt': Timestamp.now(),
         'expiresAt': Timestamp.fromDate(DateTime.now().add(invitacionDura)),
-      });
+      }).timeout(escrituraTimeout);
       return Right('$_baseUrl/join/$token');
+    } on TimeoutException {
+      // Sin el documento escrito el link no sirve para nadie, asi que no se
+      // devuelve una URL que todavia no funciona.
+      return Left(timeoutAlGuardar('la invitación'));
     } catch (e, st) {
       _log.e('createInvite fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));
@@ -279,8 +298,10 @@ class GroupRepository {
         // La regla necesita el token para validarlo, y la unica forma de
         // hacerselo llegar es dentro del documento que se escribe.
         'inviteToken': token,
-      });
+      }).timeout(escrituraTimeout);
       return Right(inv.groupId);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('la entrada al grupo'));
     } on FirebaseException catch (e) {
       if (e.code == 'permission-denied') {
         return const Left(ValidationFailure(
@@ -295,8 +316,13 @@ class GroupRepository {
 
   Future<Either<Failure, Unit>> renameGroup(String groupId, String name) async {
     try {
-      await _groups.doc(groupId).update({'name': name.trim()});
+      await _groups
+          .doc(groupId)
+          .update({'name': name.trim()})
+          .timeout(escrituraTimeout);
       return const Right(unit);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el nombre'));
     } catch (e, st) {
       _log.e('renameGroup fallo', error: e, stackTrace: st);
       return Left(ServerFailure(message: e.toString()));

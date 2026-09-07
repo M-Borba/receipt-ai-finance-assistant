@@ -9,6 +9,7 @@ import '../../../../shared/widgets/graphify_donut_chart.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../providers/expense_provider.dart';
+import '../providers/mes_actual_provider.dart';
 import '../widgets/add_expense_sheet.dart';
 import '../../../budgets/domain/entities/budget_status.dart';
 import '../../../budgets/presentation/providers/budget_provider.dart';
@@ -22,6 +23,8 @@ class ExpensesScreen extends ConsumerWidget {
     final expensesAsync = ref.watch(expensesStreamProvider);
     final categoryTotals = ref.watch(categoryTotalsCurrentMonthProvider);
     final totalSpending = ref.watch(totalSpendingCurrentMonthProvider);
+    // El mismo mes que usan los totales: ver MesActual.
+    final mes = ref.watch(mesActualProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Gastos')),
@@ -31,7 +34,8 @@ class ExpensesScreen extends ConsumerWidget {
         label: const Text('Gasto'),
       ),
       body: expensesAsync.when(
-        data: (_) => _buildContent(context, categoryTotals, totalSpending),
+        data: (_) =>
+            _buildContent(context, categoryTotals, totalSpending, mes),
         loading: () => const LoadingIndicator(),
         error: (e, _) => ErrorDisplay(message: e.toString()),
       ),
@@ -42,8 +46,9 @@ class ExpensesScreen extends ConsumerWidget {
     BuildContext context,
     Map<ExpenseCategory, int> totals,
     int total,
+    DateTime mes,
   ) {
-    final month = AppDate.monthYear(DateTime.now());
+    final month = AppDate.monthYear(mes);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

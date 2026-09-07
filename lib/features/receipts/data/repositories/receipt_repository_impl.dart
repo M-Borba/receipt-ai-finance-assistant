@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/config/environment.dart';
 import '../../../../core/errors/exceptions.dart';
+import '../../../../core/errors/write_timeout.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../services/ai/ai_service.dart';
 import '../../../../services/image/image_compression_service.dart';
@@ -240,7 +241,9 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
         });
       }
 
-      await batch.commit();
+      // Con timeout: sin red, commit() no resuelve nunca y la pantalla queda
+      // con el spinner puesto para siempre.
+      await batch.commit().timeout(escrituraTimeout);
 
       // Recien aca se aprende, no al escanear: lo que importa es la categoria
       // que la persona CONFIRMO, que puede ser distinta de la que se adivino.
@@ -248,6 +251,8 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       unawaited(_memory.remember(draft.storeName, draft.category));
 
       return Right(receipt);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el ticket'));
     } on StorageException catch (e) {
       return Left(StorageFailure(e.message));
     } catch (e) {
@@ -313,7 +318,7 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
         batch.delete(expense.reference);
       }
       batch.delete(_receiptsCol.doc(id));
-      await batch.commit();
+      await batch.commit().timeout(escrituraTimeout);
 
       // La miniatura se borra APARTE y sin cortar el flujo si falla.
       //
@@ -334,6 +339,8 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       }
 
       return const Right(null);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el borrado'));
     } catch (e) {
       return Left(StorageFailure('$e'));
     }
@@ -373,7 +380,7 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
         });
       }
 
-      await batch.commit();
+      await batch.commit().timeout(escrituraTimeout);
 
       // Editar la categoria de un ticket es la correccion mas explicita que
       // existe: es exactamente el momento en que hay que aprender.
@@ -381,6 +388,8 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
 
       final doc = await _receiptsCol.doc(id).get();
       return Right(ReceiptModel.fromFirestore(doc));
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el cambio'));
     } catch (e) {
       return Left(NetworkFailure('Failed to update receipt: $e'));
     }
