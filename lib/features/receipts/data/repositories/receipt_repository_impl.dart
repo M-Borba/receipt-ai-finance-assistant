@@ -40,6 +40,7 @@ ReceiptRepository receiptRepository(Ref ref) {
     aiService: ref.watch(aiServiceProvider),
     imageCompressor: ImageCompressionService(),
     ocrService: ref.watch(ocrServiceProvider),
+    memory: ref.watch(merchantMemoryProvider),
   );
 }
 
@@ -50,22 +51,8 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
   final AIService _aiService;
   final ImageCompressionService _imageCompressor;
   final OcrService _ocrService;
+  final MerchantMemory _memory;
   final _thumbnails = const ThumbnailService();
-
-  MerchantMemory? _memoryCache;
-  String? _memoryUid;
-
-  /// Se reusa la instancia porque cachea el mapa de comercios en memoria: una
-  /// nueva en cada acceso releeria Firestore en cada escaneo. Se recrea si
-  /// cambio el usuario, para no mezclar la memoria de dos cuentas.
-  MerchantMemory get _memory {
-    final uid = _userId;
-    if (_memoryCache == null || _memoryUid != uid) {
-      _memoryCache = MerchantMemory(firestore: _firestore, userId: uid);
-      _memoryUid = uid;
-    }
-    return _memoryCache!;
-  }
   final _log = Logger();
   final _uuid = const Uuid();
 
@@ -76,12 +63,14 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
     required AIService aiService,
     required ImageCompressionService imageCompressor,
     required OcrService ocrService,
+    required MerchantMemory memory,
   })  : _firestore = firestore,
         _auth = auth,
         _storageService = storageService,
         _aiService = aiService,
         _imageCompressor = imageCompressor,
-        _ocrService = ocrService;
+        _ocrService = ocrService,
+        _memory = memory;
 
   /// Falla de forma explícita en vez de con un `Null check operator` opaco.
   String get _userId {
@@ -132,12 +121,16 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       //    a) lo que VOS elegiste antes para este mismo comercio. Le gana a
       //       todo: tu carniceria del barrio no esta en ninguna lista de
       //       cadenas, pero si la clasificaste una vez no hay que preguntarte
-      //       de nuevo.
+      //       de nuevo. Se busca por RUT primero, que no cambia entre
+      //       escaneos como el nombre.
       //    b) las reglas locales por marca y por producto.
       //    c) la IA, si esta disponible.
       //
       //    Ninguna de las tres bloquea el flujo si falla.
-      final recordada = await _memory.categoryFor(ocrResult.storeName);
+      final recordada = await _memory.categoryFor(
+        rut: ocrResult.merchantRut,
+        storeName: ocrResult.storeName,
+      );
       final category = recordada ??
           await _aiService.classifyExpense(
             items: ocrResult.items,
@@ -151,6 +144,8 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
         rawOcrText: ocrResult.rawText,
         items: ocrResult.items,
         storeName: ocrResult.storeName,
+        ocrStoreName: ocrResult.storeName,
+        merchantRut: ocrResult.merchantRut,
         receiptDate: ocrResult.receiptDate,
         totalCents: ocrResult.totalCents,
         category: category,
@@ -207,6 +202,7 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
         imageUrl: imageUrl,
         // Sin rawOcrText: ver ReceiptModel.toFirestore.
         storeName: draft.storeName,
+        merchantRut: draft.merchantRut,
         receiptDate: draft.receiptDate,
         items: draft.items,
         totalCents: total,
@@ -248,7 +244,14 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
       // Recien aca se aprende, no al escanear: lo que importa es la categoria
       // que la persona CONFIRMO, que puede ser distinta de la que se adivino.
       // Que falle no puede tumbar un guardado que ya se hizo.
-      unawaited(_memory.remember(draft.storeName, draft.category));
+      //
+      // Con los DOS nombres: el del OCR es el que se va a buscar en el proximo
+      // escaneo, y el corregido es el que se escribe a mano en un gasto.
+      unawaited(_memory.remember(
+        rut: draft.merchantRut,
+        nombres: [draft.ocrStoreName, draft.storeName],
+        category: draft.category,
+      ));
 
       return Right(receipt);
     } on TimeoutException {
@@ -382,12 +385,19 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
 
       await batch.commit().timeout(escrituraTimeout);
 
-      // Editar la categoria de un ticket es la correccion mas explicita que
-      // existe: es exactamente el momento en que hay que aprender.
-      unawaited(_memory.remember(storeName, category));
-
       final doc = await _receiptsCol.doc(id).get();
-      return Right(ReceiptModel.fromFirestore(doc));
+      final actualizado = ReceiptModel.fromFirestore(doc);
+
+      // Editar la categoria de un ticket es la correccion mas explicita que
+      // existe: es exactamente el momento en que hay que aprender. El RUT sale
+      // del documento, que es donde quedo guardado al escanear.
+      unawaited(_memory.remember(
+        rut: actualizado.merchantRut,
+        nombres: [storeName],
+        category: category,
+      ));
+
+      return Right(actualizado);
     } on TimeoutException {
       return Left(timeoutAlGuardar('el cambio'));
     } catch (e) {

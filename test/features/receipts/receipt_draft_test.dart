@@ -92,4 +92,28 @@ void main() {
       expect(corregido.ocrConfidence, original.ocrConfidence);
     });
   });
+
+  group('copyWith', () {
+    test('corregir el comercio no pisa el nombre del OCR ni el RUT', () {
+      // El nombre del OCR es el que la memoria tiene que aprender: es el que
+      // vuelve a aparecer en el proximo escaneo del mismo comercio.
+      final d = ReceiptDraft(
+        imageFile: XFile('/tmp/ticket.jpg'),
+        ocrPath: '/tmp/ticket.jpg',
+        rawOcrText: 'texto crudo',
+        items: const [],
+        storeName: 'GUILLERNO PUJADAS SAS',
+        ocrStoreName: 'GUILLERNO PUJADAS SAS',
+        merchantRut: '210000000010',
+        category: ExpenseCategory.other,
+      );
+      final corregido = d.copyWith(
+        storeName: 'Carnicería Pujadas',
+        category: ExpenseCategory.groceries,
+      );
+      expect(corregido.storeName, 'Carnicería Pujadas');
+      expect(corregido.ocrStoreName, 'GUILLERNO PUJADAS SAS');
+      expect(corregido.merchantRut, '210000000010');
+    });
+  });
 }

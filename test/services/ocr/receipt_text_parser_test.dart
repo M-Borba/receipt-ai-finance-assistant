@@ -272,6 +272,56 @@ void main() {
     });
   });
 
+  group('extractRut', () {
+    final parser = ReceiptTextParser();
+
+    test('con y sin puntos en la etiqueta', () {
+      expect(parser.extractRut('COMERCIO\nRUT: 211234560017'), '211234560017');
+      expect(parser.extractRut('COMERCIO\nR.U.T. 211234560017'), '211234560017');
+      expect(parser.extractRut('COMERCIO\nRUT EMISOR: 211234560017'),
+          '211234560017');
+    });
+
+    test('agrupado con espacios o puntos', () {
+      expect(parser.extractRut('RUT: 21 123456 0017'), '211234560017');
+      expect(parser.extractRut('RUT: 21.123456.0017'), '211234560017');
+    });
+
+    test('etiqueta sola y el numero en la linea de abajo', () {
+      expect(parser.extractRut('COMERCIO S.A.  R.U.T.\n211234560017\nCalle 1'),
+          '211234560017');
+    });
+
+    test('el RUT del comprador no es el del comercio', () {
+      expect(parser.extractRut('R.U.T. COMPRADOR: 219999999999'), isNull);
+      expect(
+        parser.extractRut('RUT: 211234560017\nRUT COMPRADOR: 219999999999'),
+        '211234560017',
+      );
+    });
+
+    test('la primera etiqueta decide, aunque no traiga numero', () {
+      // El del pie suele ser el del proveedor de facturacion electronica,
+      // compartido por muchos comercios: tomarlo los mezclaria a todos.
+      const ticket = 'COMERCIO  R.U.T.\nCalle 1234\nTOTAL 100.00\n'
+          'Facturacion electronica por XYZ RUT 211111110011';
+      expect(parser.extractRut(ticket), isNull);
+    });
+
+    test('una lista de telefonos debajo de la etiqueta no es un RUT', () {
+      expect(parser.extractRut('R.U.T.\nTels: 2408 5892 2409 7941'), isNull);
+    });
+
+    test('ni once ni trece digitos', () {
+      expect(parser.extractRut('RUT: 21123456001'), isNull);
+      expect(parser.extractRut('RUT: 2112345600171'), isNull);
+    });
+
+    test('"Ruta" en una direccion no es la etiqueta', () {
+      expect(parser.extractRut('Ruta 8 km 211234560017'), isNull);
+    });
+  });
+
   group('parse (integracion)', () {
     test('ticket argentino completo', () {
       final result = ReceiptTextParser().parse(_ticketArgentina);

@@ -11,6 +11,9 @@ class ReceiptEntity extends Equatable {
   final String imageUrl;
   final String? rawOcrText;
   final String? storeName;
+  /// RUT del comercio que emitio el ticket. Null en los tickets sin RUT y en
+  /// los guardados antes de que se leyera.
+  final String? merchantRut;
   final DateTime? receiptDate;
   final List<ReceiptItemEntity> items;
   /// En centavos. Ver [Money].
@@ -26,6 +29,7 @@ class ReceiptEntity extends Equatable {
     required this.imageUrl,
     this.rawOcrText,
     this.storeName,
+    this.merchantRut,
     this.receiptDate,
     required this.items,
     required this.totalCents,
@@ -51,6 +55,7 @@ class ReceiptEntity extends Equatable {
       imageUrl: imageUrl,
       rawOcrText: rawOcrText ?? this.rawOcrText,
       storeName: storeName ?? this.storeName,
+      merchantRut: merchantRut,
       receiptDate: receiptDate ?? this.receiptDate,
       items: items ?? this.items,
       totalCents: totalCents ?? this.totalCents,

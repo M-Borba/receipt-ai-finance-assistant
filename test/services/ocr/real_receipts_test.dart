@@ -170,6 +170,29 @@ void main() {
     });
   });
 
+  group('RUT del comercio', () {
+    // Los RUT de los fixtures estan anonimizados (ver test/assets/ocr/README):
+    // tienen el largo y la forma reales, pero no el digito verificador.
+    test('carniceria: etiqueta y numero en la primera linea', () {
+      expect(parser.extractRut(fixture('carniceria')), '210000000010');
+    });
+
+    test('distribuidora: el RUT va debajo del nombre', () {
+      expect(parser.extractRut(fixture('all_in_one')), '210000000020');
+    });
+
+    test('panaderia: la etiqueta esta pero el OCR no leyo el numero', () {
+      // "MEDIALUNAS GUICHON S.R.L.  R.U.T." y nada mas. El otro R.U.T. del
+      // encabezado es el del COMPRADOR y no cuenta. Sin RUT la memoria usa el
+      // nombre, que es lo mismo que hacia antes.
+      expect(parser.extractRut(fixture('panaderia')), isNull);
+    });
+
+    test('parse() lo devuelve junto con el resto', () {
+      expect(parser.parse(fixture('carniceria')).merchantRut, '210000000010');
+    });
+  });
+
   group('parse() de punta a punta', () {
     test('los tres tickets salen completos: comercio, fecha, total e items',
         () {

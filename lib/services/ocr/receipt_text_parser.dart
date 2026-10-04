@@ -114,6 +114,28 @@ class ReceiptTextParser {
     caseSensitive: false,
   );
 
+  /// Etiqueta de RUT: `RUT:`, `R.U.T.`, `R.U.T`. Los lookaround evitan que
+  /// "RUTA 8" en una direccion cuente como etiqueta.
+  static final _rutLabelPattern = RegExp(
+    r'(?<![a-z])R\.?\s?U\.?\s?T\.?(?![a-z])',
+    caseSensitive: false,
+  );
+
+  /// El encabezado tambien trae el RUT de quien COMPRA, que no identifica al
+  /// comercio.
+  static final _rutCompradorPattern =
+      RegExp(r'comprador|receptor|cliente', caseSensitive: false);
+
+  /// Doce digitos pegados a la etiqueta, admitiendo separadores sueltos por si
+  /// el ticket los imprime agrupados (`21 123456 0017`).
+  static final _rutAfterLabelPattern = RegExp(
+    r'^\s*(?:emisor)?\s*:?\s*(\d(?:[ .\-]?\d){11})(?![ .\-]?\d)',
+    caseSensitive: false,
+  );
+
+  /// Una linea que es solo el numero, para cuando el OCR separo la etiqueta.
+  static final _rutOnlyLinePattern = RegExp(r'^\s*(\d(?:[ .\-]?\d){11})\s*$');
+
   static final _numericDatePattern =
       RegExp(r'(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{2,4})');
 
@@ -134,6 +156,7 @@ class ReceiptTextParser {
       rawText: rawText,
       items: parseItems(rawText, totalCents: total),
       storeName: extractStoreName(rawText),
+      merchantRut: extractRut(rawText),
       receiptDate: extractDate(rawText),
       totalCents: total,
       confidence: confidence,
@@ -350,6 +373,35 @@ class ReceiptTextParser {
       final letters = _letterPattern.allMatches(line).length;
       if (letters * 2 < line.length) continue;
       return line.replaceAll(_taxIdLabelPattern, '').trim();
+    }
+    return null;
+  }
+
+  /// RUT del comercio que emitio el ticket: los 12 digitos, o null.
+  ///
+  /// Identifica al comercio mejor que el nombre. El nombre lo lee el OCR y
+  /// cambia de un escaneo a otro ("GUILLERNO" por "GUILLERMO"), y en un
+  /// e-Ticket es la razon social, no la marca. El RUT es siempre el mismo.
+  ///
+  /// Decide la PRIMERA etiqueta que no sea del comprador, aunque no traiga
+  /// numero. El RUT del emisor va arriba de todo; seguir buscando mas abajo
+  /// podia encontrar el del proveedor de facturacion electronica en el pie, que
+  /// es el mismo para muchos comercios distintos, y la memoria los mezclaria.
+  ///
+  /// No se valida el digito verificador: los fixtures de `test/assets/ocr/`
+  /// tienen el RUT anonimizado, y un digito mal leido solo hace que la memoria
+  /// no lo encuentre y se use el nombre, que es lo mismo que pasaba antes.
+  String? extractRut(String text) {
+    final lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final label = _rutLabelPattern.firstMatch(lines[i]);
+      if (label == null || _rutCompradorPattern.hasMatch(lines[i])) continue;
+
+      final m = _rutAfterLabelPattern.firstMatch(lines[i].substring(label.end)) ??
+          (i + 1 < lines.length
+              ? _rutOnlyLinePattern.firstMatch(lines[i + 1])
+              : null);
+      return m?.group(1)!.replaceAll(RegExp(r'\D'), '');
     }
     return null;
   }

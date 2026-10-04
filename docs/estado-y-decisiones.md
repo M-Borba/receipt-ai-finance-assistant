@@ -3,7 +3,7 @@
 Documento de traspaso. Si estás retomando esto sin el contexto de la
 conversación donde se construyó, empezá acá.
 
-Última actualización: 2026-08-29
+Última actualización: 2026-10-04
 
 ---
 
@@ -34,6 +34,9 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **La miniatura lleva su propio `userId`** | Alternativa era `get()` del ticket padre dentro de la regla, y cada `get()` en una regla es una lectura facturada, en cada evaluación. |
 | **`rawOcrText` NO se persiste** | Era el texto completo de cada compra guardado para siempre, y no lo leía nadie. Exposición sin beneficio. Se usa durante el escaneo (vive en el `ReceiptDraft`) y se descarta. Los documentos viejos se siguen leyendo. |
 | **La memoria del usuario gana sobre todo** | El orden es: lo que vos elegiste antes para ese comercio, después las reglas locales, después la IA. Nadie sabe mejor que vos en qué gastás, y los comercios chicos (que son la mayoría) nunca van a estar en una lista de cadenas. Se guarda en **un solo documento** en `users/{uid}/preferences/merchants`: se lee entero en cada escaneo, así cuesta una lectura y no una por comercio. En Firestore y no en el navegador, porque la app se usa en el celular y en la computadora. |
+| **La memoria reconoce al comercio por el RUT** | El nombre no sirve de clave: lo lee el OCR y cambia de un escaneo a otro ("GUILLERNO" por "GUILLERMO"), y en un e-Ticket es la razón social, no la marca. El RUT del emisor es el mismo en cada compra. Se busca primero por RUT y después por nombre. Los RUT van en el mapa `por_rut` del mismo documento (con guión bajo, que la normalización de nombres convierte en espacio, así ningún comercio puede caer ahí). **El parser toma la primera etiqueta de RUT que no sea del comprador, aunque no traiga número**: más abajo puede estar el del proveedor de facturación electrónica, compartido por muchos comercios, y la memoria los mezclaría. No se valida el dígito verificador: los fixtures están anonimizados, y un dígito mal leído solo hace que se use el nombre. |
+| **La memoria aprende los dos nombres de un ticket** | El que leyó el OCR y el que quedó después de corregirlo. Antes aprendía solo el corregido y buscaba con el del OCR, así que corregir el nombre de un comercio hacía que la memoria **no lo encontrara nunca**. |
+| **El gasto manual arranca en "Otros", no en Supermercado** | Lo que se carga a mano también se aprende, y un valor por defecto que nadie eligió no puede quedar recordado como la categoría de un comercio. `other` es "no sé" y nunca se aprende. La categoría se sugiere mientras escribís el comercio (memoria y después reglas, sin IA porque corre con cada tecla), y deja de tocarse apenas elegís una a mano. |
 | **Clasificación local primero, IA después** | El clasificador de comercios corre en el dispositivo: gratis, instantáneo, offline. La IA quedó como plan B. Antes era al revés, y como la IA apunta a `localhost` no funcionaba nunca en producción. |
 | **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
 | **Tests de reglas SIN emulador** | Se descartó el emulador (pide Java 11+, acá hay Java 8) y `@firebase/rules-unit-testing` (solo JS, metería Node en un repo Dart). En su lugar, `tool/verificar_reglas.py` usa el endpoint `TestRuleset` de la Security Rules API: **el mismo motor que corre en producción**, del lado del servidor, con Python de la biblioteca estándar y cero dependencias nuevas. 25 casos. |
@@ -79,7 +82,9 @@ puede hacer: está descrita en el mismo documento.
 - Clasificador de comercios uruguayos on-device
 - **Memoria de comercios**: la app aprende con qué categoría clasificás cada
   comercio y la reusa. Va antes que las reglas fijas, porque tu carnicería del
-  barrio no está ni va a estar en ninguna lista de cadenas
+  barrio no está ni va a estar en ninguna lista de cadenas. Reconoce al
+  comercio por el RUT del e-Ticket, y aprende también de los gastos manuales
+- **Sugerencia de categoría en el gasto manual**, a partir del comercio
 - Moneda y fechas por locale
 - Foto del ticket legible en Firestore, ampliable con zoom desde el detalle
 - CI/CD en GitHub Actions, PWA instalable
@@ -93,7 +98,7 @@ puede hacer: está descrita en el mismo documento.
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **256 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **282 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 

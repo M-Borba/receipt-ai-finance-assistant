@@ -8,7 +8,7 @@ las fases 2 y 3 siguen siendo diseño.
 | Tema | Decisión | Por qué |
 |---|---|---|
 | Plan de Firebase | **Spark (gratis)** | Todo lo necesario se puede hacer con reglas. Blaze solo hacía falta para Storage y Functions, y ninguno de los dos es imprescindible. |
-| Imágenes de tickets | **No se guardan en la v1** | Storage pide Blaze en proyectos nuevos. El valor está en los datos extraídos, no en la foto. |
+| Imágenes de tickets | **Se guardan en Firestore**, a 1000px | Storage pide Blaze en proyectos nuevos. La foto va en base64 en `receipts/{id}/media/thumb`; el motivo está en `estado-y-decisiones.md`. (Al principio esta fila decía que no se guardaban: quedó vieja cuando se cambió.) |
 | Invitaciones | **Link con token**, validado por reglas | Sin Cloud Functions. Cuesta una lectura por persona que se une. |
 | Proxy de IA | **Cloudflare Workers** | Gratis, sin tarjeta, 100k requests/día. |
 | Moneda | **Una por grupo**, fija al crear | Multi-moneda es un pozo sin fondo: qué cotización, de qué fecha, qué pasa si cambia. |
@@ -19,6 +19,9 @@ las fases 2 y 3 siguen siendo diseño.
 
 El modelo actual es de un dueño por documento: `request.auth.uid == resource.data.userId`.
 Un gasto compartido **no tiene un dueño**. Esta es la decisión más importante del feature.
+
+> **Revertido.** Los gastos de grupo ya no llevan copia de `memberIds`: la regla mira el
+> grupo. El motivo está en `estado-y-decisiones.md`. Lo que sigue es el diseño original.
 
 Solución elegida: **desnormalizar `memberIds` en cada documento del grupo**.
 

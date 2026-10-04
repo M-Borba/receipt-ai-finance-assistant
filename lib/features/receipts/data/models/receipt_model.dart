@@ -13,6 +13,7 @@ class ReceiptModel extends ReceiptEntity {
     required super.imageUrl,
     super.rawOcrText,
     super.storeName,
+    super.merchantRut,
     super.receiptDate,
     required super.items,
     required super.totalCents,
@@ -29,6 +30,7 @@ class ReceiptModel extends ReceiptEntity {
       imageUrl: entity.imageUrl,
       rawOcrText: entity.rawOcrText,
       storeName: entity.storeName,
+      merchantRut: entity.merchantRut,
       receiptDate: entity.receiptDate,
       items: entity.items,
       totalCents: entity.totalCents,
@@ -47,6 +49,7 @@ class ReceiptModel extends ReceiptEntity {
       imageUrl: data['imageUrl'] as String? ?? '',
       rawOcrText: data['rawOcrText'] as String?,
       storeName: data['storeName'] as String?,
+      merchantRut: data['merchantRut'] as String?,
       receiptDate: data['receiptDate'] != null
           ? (data['receiptDate'] as Timestamp).toDate()
           : null,
@@ -76,6 +79,9 @@ class ReceiptModel extends ReceiptEntity {
       'userId': userId,
       'imageUrl': imageUrl,
       'storeName': storeName,
+      // El RUT del comercio es un dato publico, no de quien compra: no tiene
+      // el problema de `rawOcrText`. Sirve para reconocer al comercio.
+      if (merchantRut != null) 'merchantRut': merchantRut,
       'receiptDate': receiptDate != null ? Timestamp.fromDate(receiptDate!) : null,
       'items': items
           .map((i) => ReceiptItemModel.fromEntity(i).toMap())

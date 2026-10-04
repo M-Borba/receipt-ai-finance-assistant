@@ -9,6 +9,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
 import '../../../../core/errors/write_timeout.dart';
+import '../../../../services/classification/merchant_memory.dart';
 import '../../domain/entities/expense_entity.dart';
 import '../../domain/repositories/expense_repository.dart';
 import '../models/expense_model.dart';
@@ -20,19 +21,23 @@ ExpenseRepository expenseRepository(Ref ref) {
   return ExpenseRepositoryImpl(
     firestore: FirebaseFirestore.instance,
     auth: FirebaseAuth.instance,
+    memory: ref.watch(merchantMemoryProvider),
   );
 }
 
 class ExpenseRepositoryImpl implements ExpenseRepository {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final MerchantMemory _memory;
   final _log = Logger();
 
   ExpenseRepositoryImpl({
     required FirebaseFirestore firestore,
     required FirebaseAuth auth,
+    required MerchantMemory memory,
   })  : _firestore = firestore,
-        _auth = auth;
+        _auth = auth,
+        _memory = memory;
 
   String get _userId {
     final uid = _auth.currentUser?.uid;
@@ -98,6 +103,14 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
         date: expense.date,
         createdAt: expense.createdAt,
       );
+
+      // Lo que cargas a mano tambien ensena: la proxima vez que escribas este
+      // comercio, o que escanees un ticket suyo, ya sale la categoria. Que
+      // falle no puede tumbar un gasto que ya se guardo.
+      unawaited(_memory.remember(
+        nombres: [expense.storeName],
+        category: category,
+      ));
       return Right(saved);
     } on TimeoutException {
       return Left(timeoutAlGuardar('el gasto'));

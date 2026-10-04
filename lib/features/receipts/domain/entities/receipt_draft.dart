@@ -20,6 +20,14 @@ class ReceiptDraft extends Equatable {
   final String rawOcrText;
   final List<ReceiptItemEntity> items;
   final String? storeName;
+
+  /// El nombre tal como lo leyo el OCR. No cambia cuando lo corregis en la
+  /// revision: es el que va a volver a aparecer en el proximo escaneo del
+  /// mismo comercio, asi que es el que la memoria tiene que aprender.
+  final String? ocrStoreName;
+
+  /// RUT del comercio, si el ticket lo trae. Ver `ReceiptTextParser.extractRut`.
+  final String? merchantRut;
   final DateTime? receiptDate;
   /// En centavos, o null si el OCR no encontro un total.
   final int? totalCents;
@@ -32,6 +40,8 @@ class ReceiptDraft extends Equatable {
     required this.rawOcrText,
     required this.items,
     this.storeName,
+    this.ocrStoreName,
+    this.merchantRut,
     this.receiptDate,
     this.totalCents,
     required this.category,
@@ -62,6 +72,8 @@ class ReceiptDraft extends Equatable {
       rawOcrText: rawOcrText,
       items: items ?? this.items,
       storeName: storeName ?? this.storeName,
+      ocrStoreName: ocrStoreName,
+      merchantRut: merchantRut,
       receiptDate: receiptDate ?? this.receiptDate,
       totalCents: totalCents ?? this.totalCents,
       category: category ?? this.category,
@@ -71,5 +83,6 @@ class ReceiptDraft extends Equatable {
 
   @override
   List<Object?> get props =>
-      [ocrPath, rawOcrText, items, storeName, receiptDate, totalCents, category];
+      [ocrPath, rawOcrText, items, storeName, merchantRut, receiptDate,
+       totalCents, category];
 }

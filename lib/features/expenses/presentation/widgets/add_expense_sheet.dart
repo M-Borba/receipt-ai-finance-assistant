@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/format/money.dart';
+import '../../../../services/classification/merchant_classifier.dart';
+import '../../../../services/classification/merchant_memory.dart';
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../domain/entities/expense_entity.dart';
@@ -39,7 +41,19 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   final _noteCtrl = TextEditingController();
   final _amountFocus = FocusNode();
 
-  ExpenseCategory _category = ExpenseCategory.groceries;
+  /// `other` y no Supermercado: lo que se guarda tambien se aprende, y un
+  /// valor por defecto que nadie eligio no puede quedar recordado como la
+  /// categoria de un comercio. `other` es "no se" y nunca se aprende.
+  static const _categoriaPorDefecto = ExpenseCategory.other;
+
+  ExpenseCategory _category = _categoriaPorDefecto;
+
+  /// True cuando la persona toco una categoria: desde ahi la sugerencia no la
+  /// cambia mas, aunque siga escribiendo el comercio.
+  bool _categoriaElegida = false;
+
+  /// True cuando la categoria actual la puso la sugerencia, para decirlo.
+  bool _sugerida = false;
   DateTime _date = DateTime.now();
   bool _saving = false;
   String? _amountError;
@@ -111,6 +125,20 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
               ),
               const SizedBox(height: 20),
 
+              // El comercio va antes que la categoria porque la categoria se
+              // sugiere a partir de el.
+              TextField(
+                controller: _storeCtrl,
+                enabled: !_saving,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Comercio (opcional)',
+                  prefixIcon: Icon(Icons.storefront_outlined),
+                ),
+                onChanged: _sugerirCategoria,
+              ),
+              const SizedBox(height: 20),
+
               Text('Categoría',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: AppColors.textSecondary,
@@ -123,29 +151,27 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                   return ChoiceChip(
                     label: Text('${c.emoji} ${c.label}'),
                     selected: c == _category,
-                    onSelected:
-                        _saving ? null : (_) => setState(() => _category = c),
+                    onSelected: _saving
+                        ? null
+                        : (_) => setState(() {
+                              _category = c;
+                              _categoriaElegida = true;
+                              _sugerida = false;
+                            }),
                   );
                 }).toList(),
               ),
+              if (_sugerida) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Sugerida por el comercio. Tocá otra para cambiarla.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.textMuted),
+                ),
+              ],
               const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _storeCtrl,
-                      enabled: !_saving,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Comercio (opcional)',
-                        prefixIcon: Icon(Icons.storefront_outlined),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
 
               InkWell(
                 onTap: _saving ? null : _pickDate,
@@ -184,6 +210,28 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
         ),
       ),
     );
+  }
+
+  /// Primero lo que elegiste antes para ese comercio, despues las reglas por
+  /// marca. Sin IA: corre con cada tecla, y en produccion la IA no esta.
+  Future<void> _sugerirCategoria(String texto) async {
+    if (_categoriaElegida) return;
+    final comercio = texto.trim();
+    final recordada = await ref
+        .read(merchantMemoryProvider)
+        .categoryFor(storeName: comercio);
+    final sugerida =
+        recordada ?? const MerchantClassifier().classify(storeName: comercio);
+
+    // Mientras se leia la memoria la persona pudo seguir escribiendo o tocar
+    // una categoria: una respuesta vieja no puede pisar a la nueva.
+    if (!mounted || _categoriaElegida || _storeCtrl.text.trim() != comercio) {
+      return;
+    }
+    setState(() {
+      _category = sugerida ?? _categoriaPorDefecto;
+      _sugerida = sugerida != null;
+    });
   }
 
   bool _esHoy(DateTime d) {
