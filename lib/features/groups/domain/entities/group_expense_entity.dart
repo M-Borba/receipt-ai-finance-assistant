@@ -2,6 +2,20 @@ import 'package:equatable/equatable.dart';
 
 import '../split.dart';
 
+/// Que es una entrada del libro del grupo.
+///
+/// Un pago ("Ana le paso $500 a Martin") se guarda como una entrada mas: Ana
+/// puso la plata y a Martin le corresponde. Asi los saldos lo absorben con la
+/// misma cuenta de siempre, sin un segundo libro que pueda desincronizarse, y
+/// borrarlo deshace el pago. Es como lo hace Splitwise.
+enum GroupEntryKind {
+  expense,
+  payment;
+
+  static GroupEntryKind fromString(String? v) =>
+      v == payment.name ? payment : expense;
+}
+
 /// Un gasto compartido.
 ///
 /// [shares] se guarda **ya resuelto en centavos**, no el modo con sus
@@ -23,6 +37,7 @@ class GroupExpenseEntity extends Equatable {
     required this.createdBy,
     required this.createdAt,
     this.receiptId,
+    this.kind = GroupEntryKind.expense,
   });
 
   final String id;
@@ -44,6 +59,10 @@ class GroupExpenseEntity extends Equatable {
   /// Enlace al ticket escaneado, si el gasto salio de uno.
   final String? receiptId;
 
+  final GroupEntryKind kind;
+
+  bool get isPayment => kind == GroupEntryKind.payment;
+
   /// Lo que esta persona puso de mas (positivo) o de menos (negativo) en
   /// **este** gasto.
   int netFor(String uid) => (paidBy[uid] ?? 0) - (shares[uid] ?? 0);
@@ -57,6 +76,6 @@ class GroupExpenseEntity extends Equatable {
   @override
   List<Object?> get props => [
         id, groupId, description, amountCents, date, mode,
-        paidBy, shares, createdBy, createdAt, receiptId,
+        paidBy, shares, createdBy, createdAt, receiptId, kind,
       ];
 }

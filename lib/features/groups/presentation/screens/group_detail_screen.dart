@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import '../../../../core/format/money.dart';
+import '../../../../core/platform/link_opener.dart';
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -10,6 +13,7 @@ import '../../data/repositories/group_repository.dart';
 import '../../domain/balance.dart';
 import '../../domain/entities/group_entity.dart';
 import '../../domain/entities/group_expense_entity.dart';
+import '../../domain/recordatorio.dart';
 import '../providers/group_provider.dart';
 import '../widgets/add_group_expense_sheet.dart';
 
@@ -258,6 +262,19 @@ class _Resumen extends ConsumerWidget {
                               : AppColors.success,
                         ),
                       ),
+                      // Solo a quien te debe: pedirte a vos mismo que pagues
+                      // no tiene sentido.
+                      if (d.to == uid)
+                        IconButton(
+                          tooltip: 'Recordar por WhatsApp',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.chat_outlined, size: 18),
+                          onPressed: () => _recordar(context, grupo, d),
+                        ),
+                      TextButton(
+                        onPressed: () => _saldar(context, ref, grupo, d, uid),
+                        child: const Text('Saldar'),
+                      ),
                     ],
                   ),
                 ),
@@ -275,6 +292,129 @@ class _Resumen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Pide confirmacion y registra el pago de una deuda.
+///
+/// Cualquiera de los dos lo puede anotar: el que pago para avisar, o el que
+/// cobro para dar por cerrado. El monto viene con la deuda entera y se puede
+/// cambiar, porque pagar de a partes es lo normal.
+Future<void> _saldar(BuildContext context, WidgetRef ref, GroupEntity grupo,
+    Debt deuda, String uid) async {
+  final cents = await showDialog<int>(
+    context: context,
+    builder: (_) => _DialogoPago(grupo: grupo, deuda: deuda, uid: uid),
+  );
+  if (cents == null || !context.mounted) return;
+
+  final res = await ref.read(groupRepositoryProvider).recordPayment(
+        group: grupo,
+        from: deuda.from,
+        to: deuda.to,
+        amountCents: cents,
+      );
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(res.fold(
+      (f) => 'No se pudo registrar el pago. ${f.message}',
+      (_) => 'Pago registrado',
+    )),
+  ));
+}
+
+class _DialogoPago extends StatefulWidget {
+  const _DialogoPago(
+      {required this.grupo, required this.deuda, required this.uid});
+
+  final GroupEntity grupo;
+  final Debt deuda;
+  final String uid;
+
+  @override
+  State<_DialogoPago> createState() => _DialogoPagoState();
+}
+
+class _DialogoPagoState extends State<_DialogoPago> {
+  late final _ctrl =
+      TextEditingController(text: Money.formatPlain(widget.deuda.cents));
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    final cents = Money.parse(_ctrl.text);
+    if (cents == null || cents <= 0) {
+      setState(() => _error = 'Poné un monto válido');
+      return;
+    }
+    Navigator.pop(context, cents);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final from = widget.deuda.from, to = widget.deuda.to;
+    final frase = from == widget.uid
+        ? 'Le pagaste a ${widget.grupo.nameOf(to)}:'
+        : to == widget.uid
+            ? '${widget.grupo.nameOf(from)} te pagó:'
+            : '${widget.grupo.nameOf(from)} le pagó a ${widget.grupo.nameOf(to)}:';
+    return AlertDialog(
+      title: const Text('Registrar pago'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(frase),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              prefixText: '${Money.symbolFor(widget.grupo.currency)} ',
+              errorText: _error,
+            ),
+            onSubmitted: (_) => _confirmar(),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Anotalo cuando la plata ya pasó de mano. Si te equivocás, '
+            'mantené apretado el pago en la lista para borrarlo.',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(onPressed: _confirmar, child: const Text('Registrar')),
+      ],
+    );
+  }
+}
+
+/// Abre WhatsApp con el pedido ya escrito. Fuera de la web lo copia.
+Future<void> _recordar(BuildContext context, GroupEntity grupo, Debt d) async {
+  final base = kIsWeb ? Uri.base.origin : 'https://mborba-proyect.web.app';
+  final texto = mensajeRecordatorio(
+    grupo: grupo.name,
+    cents: d.cents,
+    moneda: grupo.currency,
+    link: '$base/groups/${grupo.id}',
+  );
+  if (abrirLink(linkWhatsApp(texto))) return;
+
+  await Clipboard.setData(ClipboardData(text: texto));
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Mensaje copiado, pegalo en WhatsApp')),
+  );
 }
 
 /// El switch entre la vista de a pares y la simplificada.
@@ -331,15 +471,24 @@ class _FilaGasto extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final neto = gasto.netFor(uid);
     final pagadores = gasto.paidBy.keys.map(grupo.nameOf).join(' y ');
+    final monto = Money.format(gasto.amountCents, code: grupo.currency);
+    final fecha = AppDate.shortDate(gasto.date);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
+        leading: gasto.isPayment
+            ? const Icon(Icons.handshake_outlined, color: AppColors.primary)
+            : null,
         title: Row(
           children: [
             Flexible(
               child: Text(
-                gasto.description.isEmpty ? 'Gasto' : gasto.description,
+                gasto.isPayment
+                    ? 'Pago'
+                    : gasto.description.isEmpty
+                        ? 'Gasto'
+                        : gasto.description,
               ),
             ),
             // Las reglas de Firestore no pueden sumar los valores de un mapa,
@@ -357,8 +506,10 @@ class _FilaGasto extends ConsumerWidget {
           ],
         ),
         subtitle: Text(
-          '$pagadores pagó ${Money.format(gasto.amountCents, code: grupo.currency)}'
-          ' · ${AppDate.shortDate(gasto.date)}',
+          gasto.isPayment
+              ? '$pagadores le pagó $monto a '
+                  '${gasto.shares.keys.map(grupo.nameOf).join(' y ')} · $fecha'
+              : '$pagadores pagó $monto · $fecha',
           style: const TextStyle(fontSize: 12),
         ),
         trailing: Column(
@@ -391,9 +542,10 @@ class _FilaGasto extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('¿Borrar el gasto?'),
+        title: Text(gasto.isPayment ? '¿Borrar el pago?' : '¿Borrar el gasto?'),
         content: Text('Se recalculan los saldos de todo el grupo. '
-            '"${gasto.description}" se borra para todos.'),
+            '"${gasto.isPayment ? 'Pago' : gasto.description}" se borra para '
+            'todos.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),

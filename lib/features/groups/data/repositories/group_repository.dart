@@ -191,6 +191,58 @@ class GroupRepository {
     }
   }
 
+  /// Registra que [from] le pago [amountCents] a [to].
+  ///
+  /// Se guarda como una entrada del libro donde [from] puso la plata y a [to]
+  /// le corresponde: los saldos lo absorben con la cuenta de siempre. Ver
+  /// [GroupEntryKind].
+  ///
+  /// No se limita a la deuda: pagar de mas o de a partes es legitimo, y lo que
+  /// sobre queda como saldo a favor, igual que en Splitwise.
+  Future<Either<Failure, GroupExpenseEntity>> recordPayment({
+    required GroupEntity group,
+    required String from,
+    required String to,
+    required int amountCents,
+    DateTime? date,
+  }) async {
+    if (amountCents <= 0) {
+      return const Left(ValidationFailure('El monto tiene que ser mayor a cero'));
+    }
+    if (from == to) {
+      return const Left(ValidationFailure('Un pago es entre dos personas'));
+    }
+    if (!group.memberIds.contains(from) || !group.memberIds.contains(to)) {
+      return const Left(ValidationFailure('Hay alguien que no es del grupo'));
+    }
+    try {
+      final id = _uuid.v4();
+      final pago = GroupExpenseModel(
+        id: id,
+        groupId: group.id,
+        description: 'Pago',
+        amountCents: amountCents,
+        date: date ?? DateTime.now(),
+        mode: SplitMode.exact,
+        paidBy: {from: amountCents},
+        shares: {to: amountCents},
+        createdBy: _user.uid,
+        createdAt: DateTime.now(),
+        kind: GroupEntryKind.payment,
+      );
+      await _expenses(group.id)
+          .doc(id)
+          .set(pago.toFirestore())
+          .timeout(escrituraTimeout);
+      return Right(pago);
+    } on TimeoutException {
+      return Left(timeoutAlGuardar('el pago'));
+    } catch (e, st) {
+      _log.e('recordPayment fallo', error: e, stackTrace: st);
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
   Future<Either<Failure, Unit>> deleteExpense(
       String groupId, String expenseId) async {
     try {

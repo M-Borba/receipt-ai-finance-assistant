@@ -16,6 +16,7 @@ class GroupExpenseModel extends GroupExpenseEntity {
     required super.createdBy,
     required super.createdAt,
     super.receiptId,
+    super.kind,
   });
 
   factory GroupExpenseModel.fromFirestore(DocumentSnapshot doc, String groupId) {
@@ -35,6 +36,8 @@ class GroupExpenseModel extends GroupExpenseEntity {
       createdBy: data['createdBy'] as String? ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       receiptId: data['receiptId'] as String?,
+      // Los documentos viejos no tienen `kind`: son todos gastos.
+      kind: GroupEntryKind.fromString(data['kind'] as String?),
     );
   }
 
@@ -57,5 +60,6 @@ class GroupExpenseModel extends GroupExpenseEntity {
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
         if (receiptId != null) 'receiptId': receiptId,
+        'kind': kind.name,
       };
 }
