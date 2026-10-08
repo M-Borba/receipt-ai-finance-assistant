@@ -152,3 +152,57 @@ Shares _zip(List<String> uids, List<int> cents) {
   }
   return out;
 }
+
+/// Un item del ticket y quienes lo consumieron. Sin nadie elegido, es de todos.
+typedef ItemAsignado = ({int cents, List<String> quienes});
+
+/// Reparte un ticket **por item**: "la cerveza la tomamos Juan y yo, la
+/// ensalada fue de Ana". Es la fase 3 de grupos, lo que Splitwise no puede
+/// hacer porque nunca ve los items.
+///
+/// Dos pasos:
+///
+/// 1. Cada item se divide en partes iguales entre quienes lo consumieron, y
+///    se suma lo de cada uno.
+/// 2. El TOTAL del ticket se reparte en proporcion a esos subtotales.
+///
+/// El paso 2 existe porque la suma de los items casi nunca es el total: hay
+/// IVA discriminado, propina, redondeo, y el precio de cada item que lee el
+/// OCR es aproximado (ver estado-y-decisiones). Lo que sobra o falta se lo
+/// lleva cada uno en proporcion a lo que consumio, y la suma cierra
+/// **exactamente** con el total. Quien no consumio nada no paga nada, tampoco
+/// de la propina.
+///
+/// Los items en cero o negativos se ignoran: un descuento ya esta reflejado en
+/// el total, y el paso 2 lo reparte.
+///
+/// Si no queda ningun item con monto, es partes iguales entre [participants].
+Shares splitByItems({
+  required int totalCents,
+  required List<String> participants,
+  required List<ItemAsignado> items,
+}) {
+  if (participants.isEmpty) return const {};
+
+  final subtotales = {for (final p in participants) p: 0};
+  for (final item in items) {
+    if (item.cents <= 0) continue;
+    final quienes = item.quienes.where(subtotales.containsKey).toList();
+    final entre = quienes.isEmpty ? participants : quienes;
+    final partes =
+        splitLargestRemainder(item.cents, List<int>.filled(entre.length, 1));
+    for (var i = 0; i < entre.length; i++) {
+      subtotales[entre[i]] = subtotales[entre[i]]! + partes[i];
+    }
+  }
+
+  final pesos = [for (final p in participants) subtotales[p]!];
+  final partes = pesos.every((w) => w == 0)
+      ? splitLargestRemainder(totalCents, List<int>.filled(pesos.length, 1))
+      : splitLargestRemainder(totalCents, pesos);
+
+  return {
+    for (var i = 0; i < participants.length; i++)
+      if (partes[i] != 0) participants[i]: partes[i],
+  };
+}

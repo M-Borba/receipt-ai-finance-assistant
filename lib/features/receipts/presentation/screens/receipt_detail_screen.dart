@@ -11,6 +11,7 @@ import '../../../../core/format/money.dart';
 
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../services/image/thumbnail_service.dart';
+import '../../../groups/presentation/widgets/split_receipt_sheet.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../expenses/domain/entities/expense_entity.dart';
 import '../../data/repositories/receipt_repository_impl.dart';
@@ -237,6 +238,19 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
                 if (receipt.items.isNotEmpty) _buildItemsList(context, receipt.items),
                 const SizedBox(height: 16),
                 _buildTotalRow(context, receipt.totalCents),
+                // Con items se puede dividir por item, que es lo que un
+                // gasto de grupo cargado a mano no puede hacer.
+                if (receipt.items.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => SplitReceiptSheet.show(context, receipt),
+                      icon: const Icon(Icons.call_split),
+                      label: const Text('Dividir en un grupo'),
+                    ),
+                  ),
+                ],
                 if (receipt.ocrConfidence > 0) ...[
                   const SizedBox(height: 16),
                   _buildConfidenceBar(context, receipt.ocrConfidence),
