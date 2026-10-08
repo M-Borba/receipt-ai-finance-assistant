@@ -389,7 +389,7 @@ class _InsightsSummary extends StatelessWidget {
                   const Icon(Icons.lightbulb_outline, color: AppColors.textMuted),
                   const SizedBox(width: 12),
                   Text(
-                    'Add more receipts to get insights',
+                    'Cargá algunos gastos y acá aparece cómo viene el mes',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],

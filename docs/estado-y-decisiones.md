@@ -3,7 +3,7 @@
 Documento de traspaso. Si estás retomando esto sin el contexto de la
 conversación donde se construyó, empezá acá.
 
-Última actualización: 2026-10-04
+Última actualización: 2026-10-08
 
 ---
 
@@ -37,6 +37,10 @@ Estas son las que cuestan caro revisar. El "por qué" importa más que el qué.
 | **La memoria reconoce al comercio por el RUT** | El nombre no sirve de clave: lo lee el OCR y cambia de un escaneo a otro ("GUILLERNO" por "GUILLERMO"), y en un e-Ticket es la razón social, no la marca. El RUT del emisor es el mismo en cada compra. Se busca primero por RUT y después por nombre. Los RUT van en el mapa `por_rut` del mismo documento (con guión bajo, que la normalización de nombres convierte en espacio, así ningún comercio puede caer ahí). **El parser toma la primera etiqueta de RUT que no sea del comprador, aunque no traiga número**: más abajo puede estar el del proveedor de facturación electrónica, compartido por muchos comercios, y la memoria los mezclaría. No se valida el dígito verificador: los fixtures están anonimizados, y un dígito mal leído solo hace que se use el nombre. |
 | **La memoria aprende los dos nombres de un ticket** | El que leyó el OCR y el que quedó después de corregirlo. Antes aprendía solo el corregido y buscaba con el del OCR, así que corregir el nombre de un comercio hacía que la memoria **no lo encontrara nunca**. |
 | **El gasto manual arranca en "Otros", no en Supermercado** | Lo que se carga a mano también se aprende, y un valor por defecto que nadie eligió no puede quedar recordado como la categoría de un comercio. `other` es "no sé" y nunca se aprende. La categoría se sugiere mientras escribís el comercio (memoria y después reglas, sin IA porque corre con cada tecla), y deja de tocarse apenas elegís una a mano. |
+| **Un pago de grupo es una entrada más del libro** | "Ana le pasó $500 a Martín" se guarda en `groups/{id}/expenses` con `kind: payment`: Ana puso la plata y a Martín le corresponde. Los saldos lo absorben con la misma cuenta (la de a pares ya neteaba las dos direcciones), no hay un segundo libro que se desincronice, y borrarlo deshace el pago. Las reglas no restringen campos, así que no hubo que tocarlas. Los documentos sin `kind` son gastos. |
+| **El reparto por ítem va en dos pasos** | Cada ítem se divide entre quienes lo consumieron, y después el **total** del ticket se reparte en proporción a esos subtotales. La suma de los ítems casi nunca es el total (IVA, propina, redondeo, y el precio por ítem del OCR es aproximado): así cada uno absorbe la diferencia según lo que consumió, quien no consumió nada no paga ni la propina, y la suma cierra exacta. `splitByItems`, con un barrido de 3000 casos. |
+| **Insights calculados primero, IA después** | La IA no llega en producción y el plan B solo sabía hablar de delivery: la pantalla quedaba vacía. `insightsLocales` calcula proyección del mes, comparación con el mes pasado **a la misma altura** (comparar 8 días con un mes entero siempre da "gastaste menos"), la categoría que más subió y el comercio más repetido. La IA quedó en `aiInsightsProvider` con el cacheo de siempre, y se suma si responde. |
+| **Recordatorios por calendario, no push** | Las push necesitan un servidor y en iPhone solo andan con la PWA instalada. Los gastos fijos (un pago por mes, los últimos 3 meses, dentro de un 25% de la mediana) se ofrecen como `.ics` con repetición mensual y alarma: avisa el calendario del celular, con la app cerrada. Días 29 a 31 se corren al 28, que existe en todos los meses. |
 | **Clasificación local primero, IA después** | El clasificador de comercios corre en el dispositivo: gratis, instantáneo, offline. La IA quedó como plan B. Antes era al revés, y como la IA apunta a `localhost` no funcionaba nunca en producción. |
 | **Nada de multi-moneda** | Una moneda, sale de `app.env`. Multi-moneda es un pozo: qué cotización, de qué fecha, qué pasa si cambia. |
 | **Tests de reglas SIN emulador** | Se descartó el emulador (pide Java 11+, acá hay Java 8) y `@firebase/rules-unit-testing` (solo JS, metería Node en un repo Dart). En su lugar, `tool/verificar_reglas.py` usa el endpoint `TestRuleset` de la Security Rules API: **el mismo motor que corre en producción**, del lado del servidor, con Python de la biblioteca estándar y cero dependencias nuevas. 25 casos. |
@@ -98,7 +102,13 @@ puede hacer: está descrita en el mismo documento.
 - **Límite conocido de las reglas**: no pueden validar que el reparto de un
   gasto de grupo sume el total, porque el lenguaje no suma valores de un mapa.
   Lo valida el cliente y la UI marca los descuadrados
-- **282 tests**, `flutter analyze` en 0 errores y 0 warnings
+- **Grupos fase 2 y 3**: registrar pagos ("Saldar"), recordar por WhatsApp,
+  vista simplificada, y dividir un ticket escaneado **por ítem** desde su detalle
+- **Insights calculados** sin IA, y **gastos fijos** detectados con recordatorio
+  en el calendario (`.ics`)
+- Lista de tickets paginada ("Ver más"); el borrador del escaneo sobrevive a un
+  guardado fallido y a salir de la pantalla
+- **318 tests**, `flutter analyze` en 0 errores y 0 warnings
 
 ## Qué falta
 
@@ -111,11 +121,15 @@ puede hacer: está descrita en el mismo documento.
    apunta a Ollama en `localhost`. Sirve para: insights, estructurar el texto
    cuando el regex falla, y el chat futuro. Para clasificar ya casi no hace
    falta.
-3. **Notificaciones.** Hoy cero. Las push necesitan un servidor que mire los
-   datos: el mismo Worker del punto 2, con un cron. En iPhone solo funcionan si
-   la persona instaló el PWA en la pantalla de inicio.
-4. **Grupos fase 2 y 3.** Settle up, y la que importa: asignación por ítem
-   ("la cerveza la tomamos Juan y yo"). Ver `docs/grupos-y-division.md`.
+3. **Notificaciones push.** Los gastos fijos ya se recuerdan por calendario.
+   Las push necesitan un servidor que mire los datos: el mismo Worker del punto
+   2, con un cron. En iPhone solo funcionan con la PWA instalada.
+4. **Lo que le falta al reparto por ítem.** Los otros miembros no ven la foto
+   ni los ítems del ticket: el ticket es personal y las reglas lo autorizan por
+   `userId`. Y el gasto personal de quien escaneó sigue siendo el total, no su
+   parte. Ver `docs/grupos-y-division.md`.
+5. **Vencimientos cargados a mano.** Hoy los fijos salen del historial, así que
+   uno nuevo aparece recién después de tres meses.
 
 ---
 

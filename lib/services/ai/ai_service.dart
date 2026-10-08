@@ -147,8 +147,10 @@ Genera 3 a 5 observaciones. Devuelve SOLO un array JSON:
       final json = _extractJsonArray(response);
       return json.map((item) => InsightEntity.fromAiResponse(item, userId, month)).toList();
     } catch (e) {
-      _log.e('Failed to generate AI insights', error: e);
-      return _fallbackInsights(categoryTotals, totalCents, userId, month);
+      // Sin plan B propio: los insights calculados (insightsLocales) se
+      // muestran siempre, y el viejo de delivery los repetia.
+      _log.w('Failed to generate AI insights', error: e);
+      return const [];
     }
   }
 
@@ -165,28 +167,5 @@ Genera 3 a 5 observaciones. Devuelve SOLO un array JSON:
     if (start == -1 || end == -1) throw AiException('No JSON array found');
     final list = jsonDecode(text.substring(start, end + 1)) as List;
     return list.cast<Map<String, dynamic>>();
-  }
-
-  List<InsightEntity> _fallbackInsights(
-    Map<ExpenseCategory, int> totals,
-    int totalCents,
-    String userId,
-    DateTime month,
-  ) {
-    final insights = <InsightEntity>[];
-    if (totals.containsKey(ExpenseCategory.delivery)) {
-      final pct = ((totals[ExpenseCategory.delivery]! / totalCents) * 100).round();
-      insights.add(InsightEntity(
-        id: 'fallback_delivery',
-        userId: userId,
-        month: month,
-        title: 'Gasto en delivery',
-        description: 'El delivery fue el $pct% de tus gastos del mes.',
-        type: InsightType.pattern,
-        icon: '🚚',
-        createdAt: DateTime.now(),
-      ));
-    }
-    return insights;
   }
 }

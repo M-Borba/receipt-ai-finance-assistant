@@ -202,7 +202,12 @@ Falta de la fase 1: **invitar gente**. El grupo se crea con una sola persona y l
 prohíben cambiar `memberIds`. Es deliberado: el link de invitación es justo la parte que
 expone datos a terceros, y necesita los tests de reglas primero.
 
-**Fase 2.** Settle up con el greedy, switch de simplificación, registro de pagos.
+**Fase 2. HECHA** (2026-10-08). Switch de simplificación, y registro de pagos: un pago es
+una entrada del libro con `kind: payment` (ver `estado-y-decisiones.md`). Cada deuda tiene
+"Saldar" y, si te la deben a vos, "Recordar" por WhatsApp.
+
+**Fase 3. PRIMER CORTE HECHO** (2026-10-08): "Dividir en un grupo" desde el detalle de un
+ticket, con `splitByItems`. Falta que los demás miembros vean la foto y los ítems.
 
 **Fase 3, la que importa.** La app ya extrae **los ítems con sus precios** del ticket. Eso
 habilita **asignación por ítem**: "la cerveza la tomamos Juan y yo, la ensalada fue de Ana,
