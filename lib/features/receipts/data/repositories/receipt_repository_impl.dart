@@ -357,6 +357,9 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
     required ExpenseCategory category,
     required DateTime receiptDate,
   }) async {
+    if (totalCents <= 0) {
+      return const Left(ValidationFailure('El total tiene que ser mayor a 0'));
+    }
     try {
       // Sin el filtro por userId esta query viola las reglas de Firestore
       // (`allow list: if owns()`) y devuelve PERMISSION_DENIED.
@@ -407,11 +410,13 @@ class ReceiptRepositoryImpl implements ReceiptRepository {
 
 
   @override
-  Stream<List<ReceiptEntity>> watchReceipts() {
+  Stream<List<ReceiptEntity>> watchReceipts({
+    int limit = AppConstants.receiptsPageSize,
+  }) {
     return _receiptsCol
         .where('userId', isEqualTo: _userId)
         .orderBy('createdAt', descending: true)
-        .limit(AppConstants.receiptsPageSize)
+        .limit(limit)
         .snapshots()
         .map((snap) => snap.docs
             .map((doc) => ReceiptModel.fromFirestore(doc))

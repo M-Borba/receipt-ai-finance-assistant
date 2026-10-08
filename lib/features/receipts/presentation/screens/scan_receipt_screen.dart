@@ -24,6 +24,25 @@ class _ScanReceiptScreenState extends ConsumerState<ScanReceiptScreen> {
   final _picker = ImagePicker();
 
   @override
+  void initState() {
+    super.initState();
+    // El borrador sobrevive a salir de la pantalla, la foto en memoria de la
+    // pantalla no: se vuelve a leer del archivo elegido.
+    final state = ref.read(scanProvider);
+    if (state case ScanReviewing(:final draft) || ScanSaving(:final draft)) {
+      _selectedImage = draft.imageFile;
+      draft.imageFile.readAsBytes().then((bytes) {
+        if (mounted) setState(() => _selectedImageBytes = bytes);
+      }).catchError((_) {});
+    } else if (state is ScanSaved || state is ScanFailed) {
+      // Lo que termino mientras no estabas mirando no tiene que reaparecer.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(scanProvider.notifier).reset();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scanState = ref.watch(scanProvider);
 
@@ -39,10 +58,15 @@ class _ScanReceiptScreenState extends ConsumerState<ScanReceiptScreen> {
         _clearImage();
         context.go('/receipts');
       }
-      if (next is ScanFailed) {
+      final error = switch (next) {
+        ScanFailed(:final message) => message,
+        ScanReviewing(:final saveError?) => saveError,
+        _ => null,
+      };
+      if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(next.message),
+            content: Text(error),
             backgroundColor: AppColors.error,
           ),
         );

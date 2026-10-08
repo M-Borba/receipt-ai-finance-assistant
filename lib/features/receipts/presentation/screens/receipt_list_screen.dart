@@ -30,7 +30,7 @@ class ReceiptListScreen extends ConsumerWidget {
       body: receiptsAsync.when(
         data: (receipts) => receipts.isEmpty
             ? _buildEmptyState(context)
-            : _buildList(context, receipts),
+            : _buildList(context, ref, receipts),
         loading: () => const Padding(
           padding: EdgeInsets.all(24),
           child: ShimmerList(count: 6),
@@ -46,15 +46,31 @@ class ReceiptListScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildList(BuildContext context, List<ReceiptEntity> receipts) {
+  Widget _buildList(
+      BuildContext context, WidgetRef ref, List<ReceiptEntity> receipts) {
+    // Si vino la pagina llena puede haber mas. Si hay justo esa cantidad, el
+    // boton trae una pagina vacia y desaparece: es el costo de no contar.
+    final puedeHaberMas = receipts.length >= ref.watch(receiptsLimitProvider);
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: receipts.length,
+      // Abajo deja lugar para que el boton flotante no tape el ultimo.
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      itemCount: receipts.length + (puedeHaberMas ? 1 : 0),
       separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => ReceiptCard(
-        receipt: receipts[index],
-        onTap: () => context.go('/receipts/${receipts[index].id}'),
-      ),
+      itemBuilder: (context, index) {
+        if (index == receipts.length) {
+          return Center(
+            child: TextButton.icon(
+              onPressed: () => ref.read(receiptsLimitProvider.notifier).verMas(),
+              icon: const Icon(Icons.expand_more),
+              label: const Text('Ver más tickets'),
+            ),
+          );
+        }
+        return ReceiptCard(
+          receipt: receipts[index],
+          onTap: () => context.go('/receipts/${receipts[index].id}'),
+        );
+      },
     );
   }
 
@@ -65,10 +81,10 @@ class ReceiptListScreen extends ConsumerWidget {
         children: [
           const Icon(Icons.receipt_long_outlined, size: 64, color: AppColors.textMuted),
           const SizedBox(height: 16),
-          Text('No receipts yet', style: Theme.of(context).textTheme.titleMedium),
+          Text('Todavía no hay tickets', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'Scan your first receipt to get started',
+            'Escaneá el primero para empezar',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],

@@ -1,16 +1,31 @@
 import 'package:cross_file/cross_file.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/constants/app_constants.dart';
+
 import '../../data/repositories/receipt_repository_impl.dart';
 import '../../domain/entities/receipt_draft.dart';
 import '../../domain/entities/receipt_entity.dart';
 
 part 'receipt_provider.g.dart';
 
+/// Cuantos tickets trae la lista. Arranca en una pagina y crece con "Ver mas".
+///
+/// Antes estaba clavado en 20 y no habia paginacion: al ticket 21, el mas
+/// viejo (y su foto) quedaba sin ningun camino en la app, porque el detalle
+/// solo se alcanza desde esta lista.
+@riverpod
+class ReceiptsLimit extends _$ReceiptsLimit {
+  @override
+  int build() => AppConstants.receiptsPageSize;
+
+  void verMas() => state += AppConstants.receiptsPageSize;
+}
+
 @riverpod
 Stream<List<ReceiptEntity>> receiptsStream(Ref ref) {
   final repo = ref.watch(receiptRepositoryProvider);
-  return repo.watchReceipts();
+  return repo.watchReceipts(limit: ref.watch(receiptsLimitProvider));
 }
 
 /// Estados del flujo de escaneo.
@@ -30,9 +45,13 @@ class ScanAnalyzing extends ScanState {
 }
 
 /// El OCR termino y espera que el usuario revise y corrija.
+///
+/// [saveError] viene cargado cuando se intento guardar y fallo: la persona
+/// vuelve a la revision con todo lo que habia corregido, en vez de perderlo.
 class ScanReviewing extends ScanState {
   final ReceiptDraft draft;
-  const ScanReviewing(this.draft);
+  final String? saveError;
+  const ScanReviewing(this.draft, {this.saveError});
 }
 
 class ScanSaving extends ScanState {
@@ -50,7 +69,11 @@ class ScanFailed extends ScanState {
   const ScanFailed(this.message);
 }
 
-@riverpod
+/// keepAlive: el borrador sobrevive a salir de la pantalla. Antes era
+/// autoDispose y su unico oyente era la pantalla de escaneo, asi que tocar otra
+/// pestana de la barra de navegacion en plena revision tiraba el OCR y todas
+/// las correcciones.
+@Riverpod(keepAlive: true)
 class ScanNotifier extends _$ScanNotifier {
   @override
   ScanState build() => const ScanIdle();
@@ -76,8 +99,10 @@ class ScanNotifier extends _$ScanNotifier {
     state = ScanSaving(draft);
     final result = await ref.read(receiptRepositoryProvider).saveDraft(draft);
     if (!ref.mounted) return;
+    // Un guardado fallido vuelve a la revision con el borrador. Antes iba a
+    // ScanFailed, que no lo lleva: habia que escanear y corregir todo de nuevo.
     state = result.fold(
-      (failure) => ScanFailed(failure.message),
+      (failure) => ScanReviewing(draft, saveError: failure.message),
       (receipt) => ScanSaved(receipt),
     );
   }

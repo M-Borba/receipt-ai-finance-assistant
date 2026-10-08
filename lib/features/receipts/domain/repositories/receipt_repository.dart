@@ -29,5 +29,6 @@ abstract interface class ReceiptRepository {
   /// arrastre en cada snapshot.
   Future<String?> getThumbnail(String receiptId);
 
-  Stream<List<ReceiptEntity>> watchReceipts();
+  /// Los [limit] tickets mas nuevos.
+  Stream<List<ReceiptEntity>> watchReceipts({int limit});
 }

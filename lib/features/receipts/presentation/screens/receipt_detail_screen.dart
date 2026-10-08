@@ -494,7 +494,9 @@ class _EditReceiptSheetState extends State<_EditReceiptSheet> {
   Future<void> _save() async {
     // `replaceAll(',', '.')` convertia "1.234,56" en "1.234.56" => null.
     final total = Money.parse(_totalCtrl.text);
-    if (total == null) {
+    // `<= 0` tambien: Money.parse devuelve 0, no null, para "," o "0", y un
+    // total en cero le borraba la plata al gasto asociado sin avisar.
+    if (total == null || total <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('El monto no es válido')),
       );

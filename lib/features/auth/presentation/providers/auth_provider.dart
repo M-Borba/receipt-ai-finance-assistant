@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../receipts/presentation/providers/receipt_provider.dart';
 import '../../domain/entities/user_entity.dart';
 
 part 'auth_provider.g.dart';
@@ -89,6 +90,10 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   Future<void> signOut() async {
+    // El escaneo es keepAlive: sin esto, el borrador de esta cuenta aparecia
+    // en la pantalla de escaneo de la siguiente. Va ANTES de los await: este
+    // notifier es autoDispose y despues del primero ya puede estar descartado.
+    ref.invalidate(scanProvider);
     if (!kIsWeb) {
       // En web no hay sesion de google_sign_in que cerrar, y llamarlo tira.
       try {
@@ -96,6 +101,8 @@ class AuthNotifier extends _$AuthNotifier {
       } catch (_) {}
     }
     await FirebaseAuth.instance.signOut();
+    // Sin el guard tiraba UnmountedRefException en la consola (D20).
+    if (!ref.mounted) return;
     state = const AsyncValue.data(null);
   }
 }
